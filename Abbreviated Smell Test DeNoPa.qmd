@@ -29,9 +29,9 @@ library(Boruta)
 
 library(gtsummary)
 
-source("~/Desktop/OHRI/work/Cohorts/! Code/subsetAUC/R/itemAUC.R", echo=TRUE)
-source("~/Desktop/OHRI/work/Cohorts/! Code/subsetAUC/R/subsetAUC.R", echo=TRUE)
-source("~/Desktop/OHRI/work/Cohorts/! Code/subsetAUC/R/boruta.ranking.R", echo=TRUE)
+source("itemAUC.R", echo=TRUE)
+source("subsetAUC.R", echo=TRUE)
+source("boruta.ranking.R", echo=TRUE)
 ```
 
 ## DeNoPa Characteristics
