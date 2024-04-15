@@ -29,9 +29,9 @@ library(Boruta)
 
 library(gtsummary)
 
-source("itemAUC.R", echo=TRUE)
-source("subsetAUC.R", echo=TRUE)
-source("boruta.ranking.R", echo=TRUE)
+source("~/Desktop/OHRI/work/Cohorts/! Code/subsetAUC/R/itemAUC.R", echo=TRUE)
+source("~/Desktop/OHRI/work/Cohorts/! Code/subsetAUC/R/subsetAUC.R", echo=TRUE)
+source("~/Desktop/OHRI/work/Cohorts/! Code/subsetAUC/R/boruta.ranking.R", echo=TRUE)
 ```
 
 ## DeNoPa Characteristics
@@ -625,40 +625,6 @@ result_val_72 <- subsetAUC(df_valid_72$group, df_valid_72 %>% select(all_of(itmv
                          level1 = author_order[1], level2 = author_order[2],
                          titlestr = "Validation using 72FU", ci = FALSE,
                          legend.posistion = "none",
-                         ymin = 0.65, ymax = 0.95, new_line = 0.9,
-                         ylab = "Sub-test AUC value",
-                         xlab = "Number of scents in each subset")
-
-ggarrange(result_val_48$p, result_val_72$p, ncol = 2)
-```
-
-```{r}
-#| echo: false
-#| warning: false
-#| message: false
-
-# 48 FU
-result_val_48 <- subsetAUC(df_valid_48$group, df_valid_48 %>% select(all_of(itmvec)), indList_Average, 
-                         group_name = c("HC", "PD"),
-                         type_vec = type_vec_Average, 
-                         rank_vec = author_vec[author_vec == "Average"], 
-                         rank_order = c("Average"), rank_cols = c("red"),
-                         level1 = author_order[1], level2 = author_order[2],
-                         titlestr = "Validation using 48FU", ci = FALSE,
-                         legend.posistion = c(0.7,0.3),
-                         ymin = 0.65, ymax = 0.95, new_line = 0.9,
-                         ylab = "Sub-test AUC value",
-                         xlab = "Number of scents in each subset")
-
-# 72 FU
-result_val_72 <- subsetAUC(df_valid_72$group, df_valid_72 %>% select(all_of(itmvec)), indList_Average, 
-                         group_name = c("HC", "PD"),
-                         type_vec = type_vec_Average, 
-                         rank_vec = author_vec[author_vec == "Average"], 
-                         rank_order = c("Average"), rank_cols = c("red"),
-                         level1 = author_order[1], level2 = author_order[2],
-                         titlestr = "Validation using 72FU", ci = FALSE,
-                         legend.posistion = c(0.7,0.3),
                          ymin = 0.65, ymax = 0.95, new_line = 0.9,
                          ylab = "Sub-test AUC value",
                          xlab = "Number of scents in each subset")
