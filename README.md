@@ -4,7 +4,7 @@ Code for analysis in the manuscript entitled "Simplified Olfaction Testing to Id
 
 ## `Data preparation.DeNoPa.Rmd`
 
-Code for cut and prepare data for the study. For accessting raw data, please contact the corresponding authors. The cut data (and data dictionary) can be accessed via zenodo ([here](https://zenodo.org/records/10998698)) upon request.
+Code for cut and prepare data for the study. For accessting raw data, please contact the corresponding authors. The cut data (and data dictionary) can be accessed via zenodo (link to be updated) upon request.
 
 ## `Abbreviated Smell Test DeNoPa.qmd`
 
