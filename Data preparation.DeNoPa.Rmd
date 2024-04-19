@@ -265,10 +265,19 @@ df_D <- df_D %>%
 df_D$olfaction[is.na(df_D$SST.ID)] <- NA
 ```
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
-df_D <- df_D %>% select(-c(month, group.final, PD.NMS.02, leave.Visit))
+# hide study ID
+
+```{r}
+df_D$ID.new <- as.factor(df_D$ID)
+df_D <- df_D %>% mutate(ID.new = as.numeric(ID.new))
+```
 
 # reorder columns
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df_D <- df_D %>% select(-c(ID, month, group.final, PD.NMS.02, leave.Visit))
+names(df_D)[names(df_D) == "ID.new"] <- "ID"
+
 df_D <- df_D[, c("ID", "EVENT_ID", "group", "diagnosis","sex", "age", "ethnic", "disease.duration", "last_month",
                  "SS.ID.01.B", "SS.ID.02.B", "SS.ID.03.B", "SS.ID.04.B", "SS.ID.05.B", "SS.ID.06.B", "SS.ID.07.B", "SS.ID.08.B",
                  "SS.ID.09.B", "SS.ID.10.B", "SS.ID.11.B", "SS.ID.12.B", "SS.ID.13.B", "SS.ID.14.B", "SS.ID.15.B", "SS.ID.16.B",
