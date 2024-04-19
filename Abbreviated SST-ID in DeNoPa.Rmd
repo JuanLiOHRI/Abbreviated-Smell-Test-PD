@@ -1,0 +1,1156 @@
+---
+title: "Abbreviated SST-ID in DeNoPa"
+author: "Juan Li"
+date: "2023-10-26"
+output:  
+  bookdown::html_document2:
+    toc: true
+    number_sections: true
+    toc_float: true
+    fig_caption: yes
+    global_numbering: true 
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width=8
+)
+```
+
+# Load packages
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(dplyr)
+library(lubridate)
+library(pROC)
+library(ggplot2)
+library(ggtext)
+library(ggpubr)
+library(rms)
+library(pracma)
+library(dabestr)
+library(ggbeeswarm)
+library(dabestr)
+library(rlang)
+library(tidyr)
+
+library(subsetAUC)
+```
+
+# Read in and prepare the data
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+data_path <- "/Users/juan/Desktop/OHRI/work/Cohorts/! Code/Olfaction multiple cohorts"
+data <- read.csv(paste0(data_path, "/DeNoPa smell test.csv"), header = TRUE)
+
+data <- data %>% select(ID:age, group, diagnosis, EVENT_ID, 
+                        months, days, disease.duration.BL, disease.duration,
+                        Sniffin.Sticks.TH:SS.ID.16.M)
+```
+
+Reorder columns for an easier data manipulation
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ind <- which(names(data) == "SS.ID.01.B")
+new_order <- c(names(data)[1:(ind - 1)], 
+               paste("SS.ID.0",1:9,".B", sep = ""),paste("SS.ID.",10:16,".B", sep = ""),
+               paste("SS.ID.0",1:9,".M", sep = ""),paste("SS.ID.",10:16,".M", sep = ""))
+
+data <- data[, new_order]
+```
+
+# Demographic and diagnosis
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# last visit
+df <- data %>% group_by(ID) %>% summarise(last_month = max(months))
+data <- data %>% left_join(df, by = "ID")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Remove participants that have 16 missing at baseline
+df <- data %>% 
+  filter(EVENT_ID == "baseline")
+table(rowSums(is.na(df %>% select(SS.ID.01.B:SS.ID.16.B))))
+df$nMissing <- rowSums(is.na(df %>% select(SS.ID.01.B:SS.ID.16.B)))
+table(df %>% filter(nMissing != 0) %>% select(nMissing, group))
+
+id_vec <- df[df$nMissing == 16,]$ID
+
+data <- data %>% filter(!(ID %in% id_vec))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Update diagnosis based on info from site investigators
+data$diagnosis[data$ID == "DKP058"] <- "vascular PD"
+data$diagnosis[data$ID == "DKP153"] <- "PSP"
+```
+
+```{r}
+df <- data %>% filter(EVENT_ID == "baseline")
+table(df$diagnosis)
+```
+
+## Table 1: DeNoPa
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df <- data %>% filter(EVENT_ID == "baseline") 
+df %>% 
+  group_by(group) %>% 
+  summarise(n = n(),
+            nM = sum(sex == "Male"),
+            nF = sum(sex == "Female"),
+            age_median = median(age),
+            age_IQR = round(IQR(age),1),
+            FU_median = median(last_month),
+            FU_IQR = round(IQR(last_month),1))%>% 
+  mutate(propM = round(nM/n*100,1),
+         propF = round(nF/n*100,1))
+
+data %>% filter(EVENT_ID == "baseline") %>% 
+  group_by(group, sex) %>% 
+  summarise(age_median = median(age),
+            age_IQR = round(IQR(age),1))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# compare sex
+df0 <- df %>% filter(group %in% c("HC", "PD"))
+chisq.test(df0$group, df0$sex, correct=FALSE) # Pearson's Chi-squared test
+
+df0 <- df %>% filter(group %in% c("OND", "PD"))
+chisq.test(df0$group, df0$sex, correct=FALSE) # Pearson's Chi-squared test
+
+# compare age
+DescTools::DunnettTest(x=df$age, g=df$group, control = "PD")
+
+# compare age: male
+df0 <- df %>% filter(sex == "Male")
+DescTools::DunnettTest(x=df0$age, g=df0$group, control = "PD")
+
+# compare age: female
+df0 <- df %>% filter(sex == "Female")
+DescTools::DunnettTest(x=df0$age, g=df0$group, control = "PD")
+
+# compare follow-up duration
+DescTools::DunnettTest(x=df$last_month, g=df$group, control = "PD")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# disease duration at baseline
+df2 <- data %>% filter(EVENT_ID == "baseline", group == "PD") 
+median(df2$disease.duration)
+IQR(df2$disease.duration)
+
+df2 <- data %>% filter(EVENT_ID == "baseline", group == "OND") 
+median(df2$disease.duration)
+IQR(df2$disease.duration)
+
+df2 <- data %>% filter(EVENT_ID == "baseline", group %in% c("OND", "PD")) 
+t.test(disease.duration ~ group, data = df2)
+```
+
+## Missing responses
+
+For the other missing cases, change the missing binary to 0.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ind_B <- which(grepl(".B", names(data)))
+data[,ind_B][is.na(data[,ind_B])] <- 0
+summary(data %>% select(SS.ID.01.B:SS.ID.16.B))
+```
+
+## Key
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+n <- 16
+key <- rep(0,n)
+for (i in 1:n) {
+  if (i < 10) {
+    col <- paste("SS.ID.0",i,".M", sep="")
+  } else {
+    col <- paste("SS.ID.",i,".M", sep="")
+  }
+  
+  temp <- unlist(as.vector(unique(data %>% filter(EVENT_ID == "baseline") %>% select(all_of(col)))))
+  
+  key[i] <- setdiff(c(1:4), temp)[1]
+}
+
+key
+```
+
+## notice some errors in data entry
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+for (i in 1:n) {
+  if (i < 10) {
+    col <- paste("SS.ID.0",i,".M", sep="")
+  } else {
+    col <- paste("SS.ID.",i,".M", sep="")
+  }
+  
+  if (i < 10) {
+    col_B <- paste("SS.ID.0",i,".B", sep="")
+  } else {
+    col_B <- paste("SS.ID.",i,".B", sep="")
+  }
+  
+  temp <- sort(unlist(as.vector(unique(data %>% select(all_of(col))))))
+  
+  key_i <- key[i]
+  if (key_i %in% temp) {
+    print(i)
+    print(data  %>% filter(!!sym(col) == key_i) %>% select(EVENT_ID, ID, all_of(col), all_of(col_B)))
+    
+    data[which(data[,col]==key_i), col_B] <- 1
+  }
+}
+```
+
+update sum score
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+sumscr <- rowSums(data %>% select(SS.ID.01.B:SS.ID.16.B))
+data$sumscr <-sumscr
+```
+
+Item labels
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+itemLab <- c("01-Orange",
+             "02-Shoe Leather",
+             "03-Cinnamon",
+             "04-Peppermint",
+             "05-Banana",
+             "06-Lemon",
+             "07-Liquorice",
+             "08-Turpentine",
+             "09-Garlic",
+             "10-Coffee",
+             "11-Apple",
+             "12-Clove",
+             "13-Pineapple",
+             "14-Rose",
+             "15-Anise",
+             "16-Fish")
+```
+
+# Compare total and three subtests
+
+## Table 2: DeNoPa
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df_BL <- data %>% 
+  filter(EVENT_ID == "baseline") %>% 
+  select(ID, group, sumscr, "Sniffin.Sticks.TH", "Sniffin.Sticks.DS") 
+names(df_BL)[3:5] <- c("Identification", "Threshold", "Discrimination")
+
+df_BL <- df_BL %>% rowwise() %>% mutate(Total = Identification + Threshold + Discrimination)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+roc_1 <- roc(df_BL$group, df_BL$Identification, levels=c("HC","PD"),na.rm=TRUE,
+             ci=TRUE) 
+roc_2 <- roc(df_BL$group, df_BL$Threshold, levels=c("HC","PD"),na.rm=TRUE,
+             ci=TRUE)
+roc_3 <- roc(df_BL$group, df_BL$Discrimination, levels=c("HC","PD"),na.rm=TRUE,
+             ci=TRUE)
+roc_4 <- roc(df_BL$group, df_BL$Total, levels=c("HC","PD"),na.rm=TRUE,
+             ci=TRUE)
+
+linesize <- 1
+rpD <- ggroc(list("Identification" = roc_1, "Threshold" = roc_2, "Discrimination" = roc_3, "Total" = roc_4), size=linesize)
+rpD <- rpD + scale_color_discrete(labels = c(
+                                paste("Identification: AUC = ", round(roc_1$auc,2), " (",round(roc_1$ci[1],2),"-",round(roc_1$ci[3],2),")", sep = ""),
+                                paste("Threshold: AUC =", round(roc_2$auc,2), " (",round(roc_2$ci[1],2),"-",round(roc_2$ci[3],2),")", sep = ""),
+                                paste("Discrimination: AUC =", round(roc_3$auc,2), " (",round(roc_3$ci[1],2),"-",round(roc_3$ci[3],2),")", sep = ""),
+                                paste("Total: AUC =", round(roc_4$auc,2), " (",round(roc_4$ci[1],2),"-",round(roc_4$ci[3],2),")", sep = "")))
+rpD <- rpD + geom_segment(aes(x = 0, y = 1, xend = 1, yend = 0), linetype = "dotted", color = "black", size=linesize)
+rpD <- rpD + coord_fixed()+
+  theme(text = element_text(size=13),
+        legend.position = c(0.6, 0.2),
+        legend.title = element_blank())+
+  labs(title = "DeNoPa, baseline")
+print(rpD)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+roc_1 <- roc(df_BL$group, df_BL$Identification, levels=c("OND","PD"),na.rm=TRUE,
+             ci=TRUE) 
+roc_2 <- roc(df_BL$group, df_BL$Threshold, levels=c("OND","PD"),na.rm=TRUE,
+             ci=TRUE)
+roc_3 <- roc(df_BL$group, df_BL$Discrimination, levels=c("OND","PD"),na.rm=TRUE,
+             ci=TRUE)
+roc_4 <- roc(df_BL$group, df_BL$Total, levels=c("OND","PD"),na.rm=TRUE,
+             ci=TRUE)
+
+linesize <- 1
+rpD <- ggroc(list("Identification" = roc_1, "Threshold" = roc_2, "Discrimination" = roc_3, "Total" = roc_4), size=linesize)
+rpD <- rpD + scale_color_discrete(labels = c(
+                                paste("Identification: AUC = ", round(roc_1$auc,2), " (",round(roc_1$ci[1],2),"-",round(roc_1$ci[3],2),")", sep = ""),
+                                paste("Threshold: AUC =", round(roc_2$auc,2), " (",round(roc_2$ci[1],2),"-",round(roc_2$ci[3],2),")", sep = ""),
+                                paste("Discrimination: AUC =", round(roc_3$auc,2), " (",round(roc_3$ci[1],2),"-",round(roc_3$ci[3],2),")", sep = ""),
+                                paste("Total: AUC =", round(roc_4$auc,2), " (",round(roc_4$ci[1],2),"-",round(roc_4$ci[3],2),")", sep = "")))
+rpD <- rpD + geom_segment(aes(x = 0, y = 1, xend = 1, yend = 0), linetype = "dotted", color = "black", size=linesize)
+rpD <- rpD + coord_fixed()+
+  theme(text = element_text(size=13),
+        legend.position = c(0.6, 0.2),
+        legend.title = element_blank())+
+  labs(title = "DeNoPa, baseline")
+print(rpD)
+```
+
+# Score distribution of identification, the estimation plots: DeNoPa, Fig 1 (a)
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=8}
+dfPlt <- df_BL %>% select(ID, group, Identification) %>% 
+  left_join(data %>% filter(EVENT_ID == "baseline") %>% select(ID, sex, diagnosis), by = "ID")
+dfPlt <- dfPlt %>% mutate(diagnosis = ifelse(!is.na(diagnosis), diagnosis, group))
+vec <- unique(dfPlt$diagnosis)[!(unique(dfPlt$diagnosis) %in% c("HC", "PD"))]
+dfPlt$diagnosis <- factor(dfPlt$diagnosis, levels = c("PD", "HC", vec[order(vec)]))
+
+multi.group <- 
+  dfPlt %>%
+  dabest(group, Identification, 
+         idx = list(c("HC", "PD", "OND")),
+         paired = FALSE
+        )
+
+multi.group.mean_diff <- multi.group %>% mean_diff() 
+
+# plot
+group.names <- levels(dfPlt$diagnosis)
+color.ramp.func <- grDevices::colorRampPalette(
+                    RColorBrewer::brewer.pal(length(group.names), 'Paired')
+                    )
+my.colors <- color.ramp.func(length(group.names))
+custom.pal <- setNames(my.colors, group.names)
+
+plot(multi.group.mean_diff, color.column = diagnosis, palette = custom.pal,
+     rawplot.ylabel = paste("SST ID score", "at baseline", sep = "\n"),
+     effsize.ylabel = paste("Unpaired mean", "difference in score", sep = "\n"))
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+pairwise.t.test(dfPlt$Identification, dfPlt$group, p.adjust.method="bonferroni")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+DescTools::DunnettTest(dfPlt$Identification, dfPlt$group, control = "HC")
+```
+
+# Slice the data - only focus on HC and PD from now on
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# save all the data
+data_all <- data
+
+# Remove OND in DeNoPa
+data <- data_all %>% filter(group != "OND")
+```
+
+# Item ranking
+
+## DeNoPa, baseline
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df_BL <- data %>% 
+  filter(EVENT_ID == "baseline") %>% 
+  select(ID, contains(".B"), contains("U_"),sumscr, group) 
+itmvec <- names(df_BL)[grepl("SS.ID", names(df_BL))]
+
+resList <- itemAUC(df_BL$group, df_BL %>% select(all_of(itmvec)), nfold = 10, seed = 10,
+                   group_name = c("HC", "PD"), item_label = itemLab)
+
+itmAUC <- resList$itmAUC
+df_D <- resList$df_ave
+item_rank <- resList$rankList[[1]]
+resList$pList
+```
+
+## Figure 3 (a)
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+dfPlt <- itmAUC
+dfPlt$item <- factor(dfPlt$item, levels = item_rank)
+ggplot(dfPlt, aes(item, auc, fill = item, color = item)) + 
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75), alpha = 0.5)+
+  coord_flip()+
+  labs(y = "Distribution of single-Item AUC values across 10-fold CV")+
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        text = element_text(size = 14))
+```
+
+## Compare with other published item rankings (Figure 3 (b))
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+type_vec_Li <- c()
+indList_Li<- list()
+vec_Li <- as.numeric(gsub("([0-9]+).*$", "\\1", rev(df_D$item)))
+for (i in 1:n) {
+  ind_top_i <- vec_Li[1:i]
+  indList_Li[[i]] <- ind_top_i
+  type_vec_Li[i] <- paste("top", i)
+}
+
+# Boesveldt ranking
+type_vec_Boesveldt <- c()
+indList_Boesveldt<- list()
+vec_Boesveldt <- c(15,3,7,10,4,5,11,13,14,2,12,1,16,6,9,8)
+for (i in 1:n) {
+  ind_top_i <- vec_Boesveldt[1:i]
+  indList_Boesveldt[[i]] <- ind_top_i
+  type_vec_Boesveldt[i] <- paste("Boesveldt: top", i)
+}
+
+# Casjens ranking
+type_vec_Casjens <- c()
+indList_Casjens<- list()
+vec_Casjens <- c(4,10,15,16,7,14,5,12,2,8,6,13,1,11,3,9)
+for (i in 1:n) {
+  ind_top_i <- vec_Casjens[1:i]
+  indList_Casjens[[i]] <- ind_top_i
+  type_vec_Casjens[i] <- paste("Casjens: top", i)
+}
+
+# Lo ranking
+type_vec_Lo <- c()
+indList_Lo<- list()
+vec_Lo <- c(15,7,5,12,16,10,4,2,6,13,14,3,1,8,9,11)
+for (i in 1:n) {
+  ind_top_i <- vec_Lo[1:i]
+  indList_Lo[[i]] <- ind_top_i
+  type_vec_Lo[i] <- paste("Lo: top", i)
+}
+
+# Mahlknecht ranking
+type_vec_Mahlknecht <- c()
+indList_Mahlknecht<- list()
+vec_Mahlknecht <- c(7,15,4,3,5,13,14,10,16,2,9,11)
+for (i in 1:12) {
+  ind_top_i <- vec_Mahlknecht[1:i]
+  indList_Mahlknecht[[i]] <- ind_top_i
+  type_vec_Mahlknecht[i] <- paste("Mahlknecht: top", i)
+}
+
+# combine all
+type_vec1 <- c(type_vec_Li, type_vec_Boesveldt, type_vec_Casjens, type_vec_Lo, type_vec_Mahlknecht)
+indList1 <- c(indList_Li, indList_Boesveldt, indList_Casjens, indList_Lo, indList_Mahlknecht)
+author_vec1 <- c(rep("This study", 16), rep("Boesveldt", 16), rep("Casjens", 16), rep("Lo", 16), rep("Mahlknecht", 12))
+author_order1 <- c("This study","Boesveldt","Casjens","Lo","Mahlknecht")
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+rank_comp <- data.frame(item = c(itemLab[vec_Li],
+                                 itemLab[vec_Boesveldt],
+                                 itemLab[vec_Casjens],
+                                 itemLab[vec_Lo],
+                                 itemLab[vec_Mahlknecht]),
+                        rank = c(rep(seq(16,1,by=-1),4), seq(16,5,by=-1)),
+                        author = author_vec1)
+rank_comp$item <- factor(rank_comp$item, levels = item_rank)
+rank_comp$item_ind <- as.numeric(gsub("([0-9]+).*$", "\\1", rank_comp$item))
+
+rank_ave <- rank_comp %>% group_by(item) %>% summarise(mean = mean(rank)) %>% arrange(mean)
+rank_ave$item_ind <- as.numeric(gsub("([0-9]+).*$", "\\1", rank_ave$item))
+rank_ave$author <- rep("Average", nrow(rank_ave))
+rank_ave$rank <- 1:16
+rank_ave_long <- rank_ave %>% pivot_longer(-c(item, item_ind, author), names_to = "type", values_to = "rank") %>%
+  mutate(author = ifelse(type == "mean", "Average-mean", "Average-rank"))
+
+rank_comp <- bind_rows(rank_ave, rank_comp)
+rank_comp$author <- factor(rank_comp$author, levels = c("Average", author_order1))
+
+top_5_A<- as.vector(head(rev(rank_ave$item),7))
+bottom_5_A <- as.vector(tail(rev(rank_ave$item),5))
+
+ggplot(rank_comp, 
+       aes(author, rank, color = item, group = item, label = item_ind))+
+  geom_text(alpha = 0.5)+
+  geom_line(linetype = "dotted", size = 0.1)+
+  geom_text(data = rank_comp %>% filter(item %in% bottom_5_A),
+            aes(author, rank, color = item, group = item, label = item_ind))+
+  geom_line(data = rank_comp %>% filter(item %in% bottom_5_A),
+            aes(author, rank, color = item, group = item, label = item_ind), linetype = "dashed", size = 0.1)+
+  geom_text(data = rank_comp %>% filter(item %in% top_5_A),
+            aes(author, rank, color = item, group = item, label = item_ind))+
+  geom_line(data = rank_comp %>% filter(item %in% top_5_A),
+            aes(author, rank, color = item, group = item, label = item_ind), size = 0.15)+
+  scale_color_discrete(breaks=rev(rank_ave$item))+
+  theme(legend.title = element_blank(),
+        text = element_text(size=14),
+        axis.title.x = element_blank(),
+        axis.text.x=
+          element_text(face= c("bold", "bold.italic", rep("plain", 4))),
+        legend.text = element_markdown())+
+  labs(y = "Rank")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Average ranking
+type_vec_Average <- c()
+indList_Average<- list()
+vec_Average <- rev(as.numeric(rank_ave$item_ind))
+for (i in 1:n) {
+  ind_top_i <- vec_Average[1:i]
+  indList_Average[[i]] <- ind_top_i
+  type_vec_Average[i] <- paste("Average: top", i)
+}
+
+# combine all
+type_vec <- c(type_vec_Average, type_vec1)
+indList <- c(indList_Average, indList1)
+author_vec <- c(rep("Average", 16), author_vec1)
+author_order <- c("Average",author_order1)
+author_cols <- c("red", "blue","darkorange","purple","forestgreen", "brown")
+
+# number of distinct subset
+indList_ordered <- indList
+for (i in 1:length(indList)) {
+  indList_ordered[[i]] <- indList[[i]][order(indList[[i]])]
+}
+length(unique(indList_ordered))
+```
+
+## Subset AUC in each fold - training (Figure 4 (a), left)
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+result_dev <- subsetAUC(df_BL$group, df_BL %>% select(all_of(itmvec)), indList, 
+                        nfold = 10, seed = 10,
+                        group_name = c("HC", "PD"),
+                        type_vec = type_vec, 
+                        rank_vec = author_vec, rank_order = author_order, rank_cols = author_cols,
+                        level1 = author_order[1], level2 = author_order[2],
+                        titlestr = "Training",
+                        ymin = 0.65, ymax = 0.95, new_line = 0.9)
+p_dev <- result_dev$p
+```
+
+## Subset AUC in each fold - validating (Figure 4 (a), right)
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+result_val <- subsetAUC(df_BL$group, df_BL %>% select(all_of(itmvec)), indList, 
+                        nfold = 10, seed = 10, is_train = FALSE,
+                        group_name = c("HC", "PD"),
+                        type_vec = type_vec, 
+                        rank_vec = author_vec, rank_order = author_order, rank_cols = author_cols,
+                        level1 = author_order[1], level2 = author_order[2],
+                        titlestr = "Validating", ci = FALSE,
+                        legend.posistion = c(0.7,0.3),
+                        ymin = 0.65, ymax = 0.95, new_line = 0.9)
+p_val <- result_val$p
+
+ggarrange(p_dev, p_val, ncol = 2)
+```
+
+# Validate using 48FU and 72FU in DeNoPa (Figure 4 (b))
+
+```{r}
+df_valid <- data %>% 
+  filter(EVENT_ID %in% c("48FU","72FU"), group %in% c("HC", "PD")) %>% 
+  select(ID, EVENT_ID, contains(".B"), contains("U_"),sumscr, group) 
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+result_val2 <- subsetAUC(df_valid$group, df_valid %>% select(all_of(itmvec)), indList, 
+                         group_name = c("HC", "PD"),
+                         stratifier = df_valid$EVENT_ID,
+                         type_vec = type_vec, 
+                         rank_vec = author_vec, rank_order = author_order, rank_cols = author_cols,
+                         level1 = author_order[1], level2 = author_order[2],
+                         titlestr = "Validation using 48FU, 72FU", ci = FALSE,
+                         legend.posistion = c(0.85,0.3),
+                         ymin = 0.65, ymax = 0.95, new_line = 0.9)
+result_val2$p
+```
+
+## Figures for SPARK
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Using the average ranking
+dfPlt <- itmAUC
+dfPlt$item <- factor(dfPlt$item, levels = rank_ave$item)
+
+ggplot(dfPlt, aes(item, auc, fill = item, color = item)) + 
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75), alpha = 0.5)+
+  coord_flip()+
+  labs(y = "Distribution of single-Item AUC values across 10-fold CV")+
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        text = element_text(size = 14))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=6, fig.width=8}
+result_val <- subsetAUC(df_BL$group, df_BL %>% select(all_of(itmvec)), indList_Average, 
+                        nfold = 10, seed = 10, is_train = FALSE,
+                        group_name = c("HC", "PD"),
+                        type_vec = type_vec_Average, 
+                        rank_vec = author_vec[author_vec == "Average"], rank_order = c("Average"), rank_cols = c("red"),
+                        level1 = author_order[1],
+                        titlestr = "Validation - Baseline", ci = FALSE,
+                        ymin = 0.65, ymax = 0.95, new_line = 0.9)
+p_val <- result_val$p
+
+ggarrange(p_dev, p_val, ncol = 2)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=6, fig.width=4}
+df_valid_48 <- df_valid %>% filter(EVENT_ID == "48FU")
+result_val2 <- subsetAUC(df_valid_48$group, df_valid_48 %>% select(all_of(itmvec)), indList_Average, 
+                         group_name = c("HC", "PD"),
+                         stratifier = df_valid_48$EVENT_ID,
+                         type_vec = type_vec_Average, 
+                         rank_vec = author_vec[author_vec == "Average"], rank_order = c("Average"), rank_cols = c("red"),
+                         level1 = author_order[1],
+                         titlestr = "Validation - 48-month Follow-up", ci = FALSE,
+                         ymin = 0.65, ymax = 0.95, new_line = 0.9)
+result_val2$p
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=6, fig.width=4}
+df_valid_72 <- df_valid %>% filter(EVENT_ID == "72FU")
+result_val2 <- subsetAUC(df_valid_72$group, df_valid_72 %>% select(all_of(itmvec)), indList_Average, 
+                         group_name = c("HC", "PD"),
+                         stratifier = df_valid_72$EVENT_ID,
+                         type_vec = type_vec_Average, 
+                         rank_vec = author_vec[author_vec == "Average"], rank_order = c("Average"), rank_cols = c("red"),
+                         level1 = author_order[1],
+                         titlestr = "Validation - 72-month Follow-up", ci = FALSE,
+                         ymin = 0.65, ymax = 0.95, new_line = 0.9)
+result_val2$p
+```
+
+# Proportation of answer right in each group
+
+## All 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df <- data %>% filter(EVENT_ID == "baseline") %>% 
+  select(group, SS.ID.01.B:SS.ID.16.B) %>% 
+  group_by(group) %>% 
+  summarise(n = n(),
+            nright.01 = sum(SS.ID.01.B),
+            nright.02 = sum(SS.ID.02.B),
+            nright.03 = sum(SS.ID.03.B),
+            nright.04 = sum(SS.ID.04.B),
+            nright.05 = sum(SS.ID.05.B),
+            nright.06 = sum(SS.ID.06.B),
+            nright.07 = sum(SS.ID.07.B),
+            nright.08 = sum(SS.ID.08.B),
+            nright.09 = sum(SS.ID.09.B),
+            nright.10 = sum(SS.ID.10.B),
+            nright.11 = sum(SS.ID.11.B),
+            nright.12 = sum(SS.ID.12.B),
+            nright.13 = sum(SS.ID.13.B),
+            nright.14 = sum(SS.ID.14.B),
+            nright.15 = sum(SS.ID.15.B),
+            nright.16 = sum(SS.ID.16.B)) %>% 
+  mutate(pright.01 = round(nright.01/n*100,2),
+         pright.02 = round(nright.02/n*100,2),
+         pright.03 = round(nright.03/n*100,2),
+         pright.04 = round(nright.04/n*100,2),
+         pright.05 = round(nright.05/n*100,2),
+         pright.06 = round(nright.06/n*100,2),
+         pright.07 = round(nright.07/n*100,2),
+         pright.08 = round(nright.08/n*100,2),
+         pright.09 = round(nright.09/n*100,2),
+         pright.10 = round(nright.10/n*100,2),
+         pright.11 = round(nright.11/n*100,2),
+         pright.12 = round(nright.12/n*100,2),
+         pright.13 = round(nright.13/n*100,2),
+         pright.14 = round(nright.14/n*100,2),
+         pright.15 = round(nright.15/n*100,2),
+         pright.16 = round(nright.16/n*100,2))
+
+df <- df %>% select(group, pright.01:pright.16)
+names(df)[2:17] <- itemLab
+
+df_long <- df %>% pivot_longer(-group, names_to = "item", values_to = "prop") 
+
+df_long <- df_long %>% 
+  mutate(prop2 = ifelse(group == "HC", -prop, prop))
+```
+
+## DeNoPa: Figure 5 (a), (b)
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=8}
+df_long$item <- factor(df_long$item, levels = item_rank)
+p1 <- ggplot(df_long %>% filter(group %in% c("HC", "PD")), aes(item, prop2, fill = group))+
+  geom_col(position = "identity") +
+  labs(y = "% of answering correctly")+
+  coord_flip()+
+  scale_y_continuous(limits = c(-100,100), breaks = c(-100, -50, 0, 50, 100), labels = c(100, 50, 0, 50, 100))+
+  theme(legend.position = c(0.85, 0.9),
+        legend.title = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust=1),
+        axis.title.y = element_blank(),
+        text = element_text(size=11))
+
+df_D_diff <- as_tibble(t(df[1:2,-1]))
+names(df_D_diff) <- c("HC", "PD")
+df_D_diff <- as.data.frame(df_D_diff) %>% 
+  mutate(diff = HC-PD)
+df_D_diff$item <- itemLab
+df_D_diff$item <- factor(df_D_diff$item, levels = item_rank)
+p2 <- ggplot(df_D_diff, aes(item, diff))+
+  geom_col() +
+  labs(y = paste("% HC - % PD", sep = "\n")) +
+  coord_flip()+
+  theme(axis.title.y = element_blank(),
+        text = element_text(size=11))
+
+ggarrange(p1, p2, ncol = 2)
+```
+
+# % correct by sex 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df_M <- data %>% filter(EVENT_ID == "baseline", sex == "Male") %>% 
+  select(group, SS.ID.01.B:SS.ID.16.B) %>% 
+  group_by(group) %>% 
+  summarise(n = n(),
+            nright.01 = sum(SS.ID.01.B),
+            nright.02 = sum(SS.ID.02.B),
+            nright.03 = sum(SS.ID.03.B),
+            nright.04 = sum(SS.ID.04.B),
+            nright.05 = sum(SS.ID.05.B),
+            nright.06 = sum(SS.ID.06.B),
+            nright.07 = sum(SS.ID.07.B),
+            nright.08 = sum(SS.ID.08.B),
+            nright.09 = sum(SS.ID.09.B),
+            nright.10 = sum(SS.ID.10.B),
+            nright.11 = sum(SS.ID.11.B),
+            nright.12 = sum(SS.ID.12.B),
+            nright.13 = sum(SS.ID.13.B),
+            nright.14 = sum(SS.ID.14.B),
+            nright.15 = sum(SS.ID.15.B),
+            nright.16 = sum(SS.ID.16.B)) %>% 
+  mutate(pright.01 = round(nright.01/n*100,2),
+         pright.02 = round(nright.02/n*100,2),
+         pright.03 = round(nright.03/n*100,2),
+         pright.04 = round(nright.04/n*100,2),
+         pright.05 = round(nright.05/n*100,2),
+         pright.06 = round(nright.06/n*100,2),
+         pright.07 = round(nright.07/n*100,2),
+         pright.08 = round(nright.08/n*100,2),
+         pright.09 = round(nright.09/n*100,2),
+         pright.10 = round(nright.10/n*100,2),
+         pright.11 = round(nright.11/n*100,2),
+         pright.12 = round(nright.12/n*100,2),
+         pright.13 = round(nright.13/n*100,2),
+         pright.14 = round(nright.14/n*100,2),
+         pright.15 = round(nright.15/n*100,2),
+         pright.16 = round(nright.16/n*100,2))
+
+df_M <- df_M %>% select(group, pright.01:pright.16)
+names(df_M)[2:17] <- itemLab
+
+df_long_M <- df_M %>% pivot_longer(-group, names_to = "item", values_to = "prop") 
+df_long_M$group <- factor(df_long_M$group, levels = c("HC", "PD"))
+
+df_long_M <- df_long_M %>% 
+  mutate(prop2 = ifelse(group == "HC", -prop, prop),
+         sex = "Male")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df_F <- data %>% filter(EVENT_ID == "baseline", sex == "Female") %>% 
+  select(group, SS.ID.01.B:SS.ID.16.B) %>% 
+  group_by(group) %>% 
+  summarise(n = n(),
+            nright.01 = sum(SS.ID.01.B),
+            nright.02 = sum(SS.ID.02.B),
+            nright.03 = sum(SS.ID.03.B),
+            nright.04 = sum(SS.ID.04.B),
+            nright.05 = sum(SS.ID.05.B),
+            nright.06 = sum(SS.ID.06.B),
+            nright.07 = sum(SS.ID.07.B),
+            nright.08 = sum(SS.ID.08.B),
+            nright.09 = sum(SS.ID.09.B),
+            nright.10 = sum(SS.ID.10.B),
+            nright.11 = sum(SS.ID.11.B),
+            nright.12 = sum(SS.ID.12.B),
+            nright.13 = sum(SS.ID.13.B),
+            nright.14 = sum(SS.ID.14.B),
+            nright.15 = sum(SS.ID.15.B),
+            nright.16 = sum(SS.ID.16.B)) %>% 
+  mutate(pright.01 = round(nright.01/n*100,2),
+         pright.02 = round(nright.02/n*100,2),
+         pright.03 = round(nright.03/n*100,2),
+         pright.04 = round(nright.04/n*100,2),
+         pright.05 = round(nright.05/n*100,2),
+         pright.06 = round(nright.06/n*100,2),
+         pright.07 = round(nright.07/n*100,2),
+         pright.08 = round(nright.08/n*100,2),
+         pright.09 = round(nright.09/n*100,2),
+         pright.10 = round(nright.10/n*100,2),
+         pright.11 = round(nright.11/n*100,2),
+         pright.12 = round(nright.12/n*100,2),
+         pright.13 = round(nright.13/n*100,2),
+         pright.14 = round(nright.14/n*100,2),
+         pright.15 = round(nright.15/n*100,2),
+         pright.16 = round(nright.16/n*100,2))
+
+df_F <- df_F %>% select(group, pright.01:pright.16)
+names(df_F)[2:17] <- itemLab
+
+df_long_F <- df_F %>% pivot_longer(-group, names_to = "item", values_to = "prop") 
+df_long_F$group <- factor(df_long_F$group, levels = c("HC", "PD"))
+
+df_long_F <- df_long_F %>% 
+  mutate(prop2 = ifelse(group == "HC", -prop, prop),
+         sex = "Female")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df_long2 <- bind_rows(df_long_F, df_long_M)
+df_long2$sex <- factor(df_long2$sex)
+df_long2$item <- factor(df_long2$item, levels = item_rank)
+
+df_D1 <- df_long2 %>% filter(group %in% c("HC", "PD"))
+ggplot(df_D1, aes(item, prop2, fill = group))+
+  geom_col(position = "identity") +
+  labs(y = "% of answering correctly")+
+  coord_flip()+
+  scale_y_continuous(limits = c(-100,100), breaks = c(-100, -50, 0, 50, 100), labels = c(100, 50, 0, 50, 100))+
+  theme(legend.position = "top",
+        legend.title = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust=1),
+        axis.title.y = element_blank(),
+        text = element_text(size=11))+
+  facet_wrap(~sex)
+```
+
+
+## Single-item AUC: Female
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df_BL_F <- data %>% 
+  filter(EVENT_ID == "baseline", sex == "Female") %>% 
+  select(ID, contains(".B"), contains("U_"),sumscr, group) 
+itmvec <- names(df_BL_F)[grepl("SS.ID", names(df_BL_F))]
+
+resList_F <- itemAUC(df_BL_F$group, df_BL_F %>% select(all_of(itmvec)), 
+                     nfold = 10, seed = 10,
+                     group_name = c("HC", "PD"), item_label = itemLab)
+
+itmAUC_F <- resList_F$itmAUC
+df_D_F <- resList_F$df_ave
+item_rank_F <- resList_F$rankList[[1]]
+```
+
+## Single-item AUC: Male
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df_BL_M <- data %>% 
+  filter(EVENT_ID == "baseline", sex == "Male") %>% 
+  select(ID, contains(".B"), contains("U_"),sumscr, group) 
+itmvec <- names(df_BL_M)[grepl("SS.ID", names(df_BL_M))]
+
+resList_M <- itemAUC(df_BL_M$group, df_BL_M %>% select(all_of(itmvec)), 
+                     nfold = 10, seed = 10,
+                     group_name = c("HC", "PD"), item_label = itemLab)
+
+itmAUC_M <- resList_M$itmAUC
+df_D_M <- resList_M$df_ave
+item_rank_M <- resList_M$rankList[[1]]
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=4, fig.width=10}
+df_D$item_ind <- as.numeric(gsub("([0-9]+).*$", "\\1", df_D$item)) 
+df_D$label <- rep("This study", nrow(df_D))
+
+df_D_F$item_ind <- as.numeric(gsub("([0-9]+).*$", "\\1", df_D_F$item)) 
+df_D_F$label <- rep("Female", nrow(df_D_F))
+
+df_D_M$item_ind <- as.numeric(gsub("([0-9]+).*$", "\\1", df_D_M$item)) 
+df_D_M$label <- rep("Male", nrow(df_D_M))
+
+df <- bind_rows(df_D, df_D_F, df_D_M) 
+df$item <- factor(df$item, levels = item_rank)
+df$label <- factor(df$label, levels = c("This study", "Female", "Male"))
+
+p1 <- ggplot(df, aes(label, rank, color = item, group = item, label = item_ind))+
+  geom_text(alpha = 0.5)+
+  geom_line(linetype = "dotted", size = 0.1)+
+  geom_text(data = df %>% filter(item %in% head(item_rank, 5)),
+            aes(label, rank, color = item, group = item, label = item_ind))+
+  geom_line(data = df %>% filter(item %in% head(item_rank, 5)),
+            aes(label, rank, color = item, group = item, label = item_ind), linetype = "dashed", size = 0.1)+
+  geom_text(data = df %>% filter(item %in% tail(item_rank, 5)),
+            aes(label, rank, color = item, group = item, label = item_ind))+
+  geom_line(data = df %>% filter(item %in% tail(item_rank, 5)),
+            aes(label, rank, color = item, group = item, label = item_ind), size = 0.1)+
+  scale_color_discrete(breaks=rev(item_rank))+
+  theme(legend.title = element_blank(),
+        axis.title.x=element_blank(),
+        text = element_text(size=14))+
+  labs(y = "Rank")
+
+p2 <- ggplot(df, aes(label, auc, color = item, group = item, label = item_ind))+
+  geom_text(alpha = 0.5)+
+  geom_line(linetype = "dotted", size = 0.1)+
+  geom_text(data = df %>% filter(item %in% head(item_rank, 5)),
+            aes(label, auc, color = item, group = item, label = item_ind))+
+  geom_line(data = df %>% filter(item %in% head(item_rank, 5)),
+            aes(label, auc, color = item, group = item, label = item_ind), linetype = "dashed", size = 0.1)+
+  geom_text(data = df %>% filter(item %in% tail(item_rank, 5)),
+            aes(label, auc, color = item, group = item, label = item_ind))+
+  geom_line(data = df %>% filter(item %in% tail(item_rank, 5)),
+            aes(label, auc, color = item, group = item, label = item_ind), size = 0.1)+
+  scale_color_discrete(breaks=rev(item_rank))+
+  theme(legend.title = element_blank(),
+        axis.title.x=element_blank(),
+        text = element_text(size=14))+
+  labs(y = "Single-item AUC value")
+
+ggarrange(p1, p2, ncol = 2, common.legend = T, legend = "right")
+```
+
+# % correct by age
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+df_D_BL <- data %>% filter(EVENT_ID == "baseline")
+Qvec <- quantile(df_D_BL$age) # 40   59   66   71   85 
+
+df_D_BL <- df_D_BL %>% 
+  mutate(age_cat = case_when(
+    age <= 59 ~ "bin1",
+    age <= 66 ~ "bin2",
+    age <= 71 ~ "bin3",
+    TRUE ~ "bin4"
+  ))
+bin_vec <- c("bin1","bin2","bin3","bin4")
+
+df_long_Age <- data.frame()
+for (i in 1:4) {
+  df_age <- df_D_BL %>% filter(age_cat == bin_vec[i]) %>% 
+    select(group, SS.ID.01.B:SS.ID.16.B) %>% 
+    group_by(group) %>% 
+    summarise(n = n(),
+              nright.01 = sum(SS.ID.01.B),
+              nright.02 = sum(SS.ID.02.B),
+              nright.03 = sum(SS.ID.03.B),
+              nright.04 = sum(SS.ID.04.B),
+              nright.05 = sum(SS.ID.05.B),
+              nright.06 = sum(SS.ID.06.B),
+              nright.07 = sum(SS.ID.07.B),
+              nright.08 = sum(SS.ID.08.B),
+              nright.09 = sum(SS.ID.09.B),
+              nright.10 = sum(SS.ID.10.B),
+              nright.11 = sum(SS.ID.11.B),
+              nright.12 = sum(SS.ID.12.B),
+              nright.13 = sum(SS.ID.13.B),
+              nright.14 = sum(SS.ID.14.B),
+              nright.15 = sum(SS.ID.15.B),
+              nright.16 = sum(SS.ID.16.B)) %>% 
+    mutate(pright.01 = round(nright.01/n*100,2),
+           pright.02 = round(nright.02/n*100,2),
+           pright.03 = round(nright.03/n*100,2),
+           pright.04 = round(nright.04/n*100,2),
+           pright.05 = round(nright.05/n*100,2),
+           pright.06 = round(nright.06/n*100,2),
+           pright.07 = round(nright.07/n*100,2),
+           pright.08 = round(nright.08/n*100,2),
+           pright.09 = round(nright.09/n*100,2),
+           pright.10 = round(nright.10/n*100,2),
+           pright.11 = round(nright.11/n*100,2),
+           pright.12 = round(nright.12/n*100,2),
+           pright.13 = round(nright.13/n*100,2),
+           pright.14 = round(nright.14/n*100,2),
+           pright.15 = round(nright.15/n*100,2),
+           pright.16 = round(nright.16/n*100,2))
+  
+  df_age <- df_age %>% select(group, pright.01:pright.16)
+  names(df_age)[2:17] <- itemLab
+  
+  df_long_age <- df_age %>% pivot_longer(-group, names_to = "item", values_to = "prop") 
+  df_long_age$group <- factor(df_long_age$group, levels = c("HC", "PD"))
+  
+  df_long_age <- df_long_age %>% 
+    mutate(age = round((Qvec[i]+Qvec[i+1])/2))
+  
+  df_long_Age <- bind_rows(df_long_Age, df_long_age)
+}
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+Wnbasis <- 2
+Wnorder <- min(Wnbasis, 5)
+Wbasis  <- fda::create.bspline.basis(c(40, 85), Wnbasis, Wnorder) 
+WfdPar  <- fda::fdPar(Wbasis)
+
+nfine <- 101
+agefine <- seq(40,85, length = nfine)
+binctr <- c(50,62,68,77)
+
+df_fine <- data.frame()
+for (i in 1:n) {
+  df_W <- df_long_Age %>% filter(item == item_rank[i]) %>% pivot_wider(names_from = group, values_from = prop)
+  bin <- as.matrix(df_W[,3:4])
+  
+  result  <- fda::smooth.basis(binctr, bin, WfdPar)
+  Wfdi    <- result$fd
+  Wmatfine   <- fda::eval.fd(agefine, Wfdi)
+  
+  dfi <- data.frame(group = c(rep("HC", nfine), rep("PD", nfine)),
+                    age = rep(agefine, 2),
+                    prop = c(Wmatfine[,1], Wmatfine[,2]),
+                    item = rep(item_rank[i], nfine*2))
+  
+  df_fine <- bind_rows(df_fine, dfi)
+}
+
+df_fine$item <- factor(df_fine$item, levels = rev(item_rank))
+df_long_Age$item <- factor(df_long_Age$item, levels = rev(item_rank))
+ggplot(df_fine, aes(age, prop, color=group))+
+  geom_line()+
+  geom_point(data = df_long_Age, aes(age, prop, color=group))+
+  xlim(40,85)+
+  facet_wrap(~item)+
+  labs(x = "Age at baseline",
+       y = "% of participants answering items correctly")+
+  theme(text = element_text(size=12),
+        legend.title = element_blank(),
+        legend.position = "top")
+```
+
+
+# ICC
+
+## The full information matrix, if missing, set it to `5`
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+for (i in 1:n) {
+  if (i < 10) {
+    col_B <- paste("SS.ID.0",i,".B", sep="")
+    col_M <- paste("SS.ID.0",i,".M", sep="")
+    str <- "U_0"
+  } else {
+    col_B <- paste("SS.ID.",i,".B", sep="")
+    col_M <- paste("SS.ID.",i,".M", sep="")
+    str <- "U_"
+  }
+  
+  key_i <- key[i]
+  vec_B <- unname(unlist(data[col_B]))
+  vec_M <- unname(unlist(data[col_M]))
+  vec <- ifelse(vec_B == 1, key_i, vec_M)
+  
+  data$new <- vec
+  
+  names(data)[ncol(data)] <- paste(str,i,sep="")
+}
+```
+
+## `optList`
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+noption <- rep(4, n)
+ScoreList <- list() # option scores
+for (item in 1:n){
+  scorei <- rep(0,noption[item])
+  scorei[key[item]] <- 1
+  ScoreList[[item]] <- scorei
+}
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+vec <- unlist(strsplit(itemLab, "-"))
+itemLab2 <- vec[seq(2, length(vec), by = 2)]
+
+optionLabels <- as.matrix(read.csv("/Users/juan/Desktop/OHRI/work/Cohorts/!DeNoPa PPMI Temporal/DeNoPa/Sniffin Sticks ID option.csv",header = F, check.names=FALSE))
+labelList <- list() # list of just option labels
+for (item in 1:n){
+  #labelList[[item]] <- c(optionLabels[item,1:4], "5-missing")
+  labelList[[item]] <- optionLabels[item,1:4]
+}
+optList <- list(itemLab=itemLab2, optLab=labelList, optScr=ScoreList)
+```
+
+## set up U matrix
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+U_PD <- unname(as.matrix(data %>% 
+                           filter(EVENT_ID == "baseline", group == "PD") %>% 
+                           dplyr::select(U_01:U_16)))
+nMissing <- rowSums(is.na(U_PD)) 
+U_PD <- U_PD[nMissing == 0, ]
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+U_HC <- unname(as.matrix(data %>% 
+                           filter(EVENT_ID == "baseline", group == "HC") %>% 
+                           dplyr::select(U_01:U_16)))
+nMissing <- rowSums(is.na(U_HC)) 
+U_HC <- U_HC[nMissing == 0, ]
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(TestGardener)
+source("~/Desktop/OHRI/work/Cohorts/! Code/IRT/R/make.dataList.R", echo=TRUE)
+source("~/Desktop/OHRI/work/Cohorts/! Code/IRT/R/Wbinsmth.R", echo=TRUE)
+source("~/Desktop/OHRI/work/Cohorts/! Code/IRT/R/eval_surp.R", echo=TRUE)
+source("~/Desktop/OHRI/work/Cohorts/! Code/IRT/R/ICC.plot.R", echo=TRUE)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+PD_dataList <- make.dataList(U_PD, key, optList, order = 2)
+HC_dataList <- make.dataList(U_HC, key, optList, order = 2)
+```
+
+### PD
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+theta_PD    <- PD_dataList$percntrnk
+thetaQnt_PD  <- PD_dataList$thetaQnt
+WfdResult_PD <- Wbinsmth(theta_PD, PD_dataList)
+theta0_PD <- theta_PD
+
+WfdList_PD <- WfdResult_PD$WfdList
+binctr_PD  <- WfdResult_PD$aves
+```
+
+### HC
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+theta_HC     <- HC_dataList$percntrnk
+thetaQnt_HC  <- HC_dataList$thetaQnt
+WfdResult_HC <- Wbinsmth(theta_HC, HC_dataList)
+theta0_HC    <- theta_HC
+
+WfdList_HC <- WfdResult_HC$WfdList
+binctr_HC  <- WfdResult_HC$aves
+```
+
+### Plot
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+indfine <- seq(0,100,len=101)
+Qvec    <- c(5,25,50,75,95)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=5, fig.width=10}
+for (i in 1:n) {
+  p1 <- ICC.plot(indfine, WfdList_PD, PD_dataList, Qvec, binctr_PD, plotType = "P",
+                 data_point = FALSE, plotindex = i, titlestr = "PD", 
+                 lgdlab=14, axisttl = 14, axistxt = 14)[[1]]
+  p2 <- ICC.plot(indfine, WfdList_HC, HC_dataList, Qvec, binctr_HC, plotType = "P",
+                 data_point = FALSE, plotindex = i, titlestr = "HC", ylab = "", 
+                 lgdlab=14, axisttl = 14, axistxt = 14)[[1]]
+  
+  print(ggarrange(p1, p2, ncol=2, common.legend = TRUE, legend = "bottom"))
+}
+```
+
+```{r}
+
+```
+
