@@ -9,9 +9,9 @@ medRxiv preprint doi: https://doi.org/10.1101/2024.08.09.24311696
 Datasets of the three cohorts used in this study can be accessed via zenodo (link to be updated) upon request.
 
 1. `Data dictionary.xlsx`
-2. Ottawa (PREDIGT) Trial (baseline): `Ottawa_cut.csv`
-3. Prognostic Biomarkers in Parkinson’s Disease Study (PROBE; baseline): `PROBE_cut.csv`
-4. “_De Novo_ Parkinson disease study” (DeNoPa; baseline, 48-month, and 72-month follow-up visits): `DeNoPa_cut.csv`
+2. `Ottawa_cut.csv`: Ottawa (PREDIGT) Trial (baseline)
+3. `PROBE_cut.csv`: Prognostic Biomarkers in Parkinson’s Disease Study (PROBE; baseline)
+4. `DeNoPa_cut.csv`: “_De Novo_ Parkinson disease study” (DeNoPa; baseline, 48-month, and 72-month follow-up visits)
 
 ## Supportive files
 
