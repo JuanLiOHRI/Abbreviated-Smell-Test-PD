@@ -1,6 +1,6 @@
 # Abbreviated Smell Test to Identify Patients with PD/DLB
 
-Code for analysis in the manuscript entitled "Development of a Simplified Smell Test to Identify Patients with Typical Parkinson’s as Informed by Multiple Cohorts, Machine Learning and External Validation". 
+Code for analysis in the manuscript entitled "_Development of a Simplified Smell Test to Identify Patients with Typical Parkinson’s as Informed by Multiple Cohorts, Machine Learning and External Validation_". 
 
 medRxiv preprint doi: https://doi.org/10.1101/2024.08.09.24311696
 
