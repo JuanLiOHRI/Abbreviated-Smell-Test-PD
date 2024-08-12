@@ -82,7 +82,7 @@ df_shared <- df_shared %>%
 n <-nrow(df_shared)
 print.data.frame(df_shared[,c("rank", "scent", "rank_SST_ID", "rank_UPSIT", "rank_ave")]) 
 
-write.csv(df_shared, "Generated files/df_shared.csv", row.names = FALSE)
+write.csv(df_shared, "Generated files/scent_shared.csv", row.names = FALSE)
 ```
 
 ```{r}
