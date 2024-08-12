@@ -6,7 +6,7 @@ medRxiv preprint doi: https://doi.org/10.1101/2024.08.09.24311696
 
 ## Data files
 
-Datasets of the three cohorts used in this study can be accessed via zenodo (link to be updated) upon request.
+Datasets of the 3 cohorts used in this study can be accessed via zenodo (link to be updated) upon request.
 
 1. `Data dictionary.xlsx`
 2. `Ottawa_cut.csv`: Ottawa (PREDIGT) Trial (baseline)
@@ -28,11 +28,11 @@ Included in this repo:
 
 1. `1. Tables, distributions, ROCs.qmd`
    1. Code for
-      - Table 1:
-      - Table 2:
-      - Supplemental Table 2:
-      - Figure 2:
-      - Supplemental Figure 1:
+      - Table 1: demographic and diagnostic characteristics of the 3 cohorts
+      - Table 2: AUC, sensitivity and specificity of SST-ID and UPSIT
+      - Supplemental Table 2: relationship between SST-ID/UPSIT scores with age, sex, and diagnostic groups
+      - Figure 2: distribution and AUC values of SST-ID and UPSIT
+      - Supplemental Figure 1: distribution and AUC values of SST-TH and SST-DS
    2. Need to read
       - `diagnosis colors.csv`
       - `Ottawa_cut.csv`
