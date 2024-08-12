@@ -27,13 +27,24 @@ Included in this repo:
 ## Code files
 
 1. `1. Tables, distributions, ROCs.qmd`
+   1. Code for
+      - Table 1:
+      - Table 2:
+      - Supplemental Table 2:
+      - Figure 2:
+      - Supplemental Figure 1:
+  2. Need to read
+     - `diagnosis colors.csv`
+     - `Ottawa_cut.csv`
+     - `PROBE_cut.csv`
+     - `DeNoPa_cut.csv`
 2. `2. Abbreviated Smell Test SST-ID.qmd`
 3. `3. Abbreviated Smell Test UPSIT.qmd`
 4. `4. Combine UPSIT and SST-ID.qmd`
 
-## Supporting function
+## Supportive function
 
-Supporting functions are placed in the `R` folder. These functions need to be sourced in `2. Abbreviated Smell Test SST-ID.qmd` and `4. Combine UPSIT and SST-ID.qmd`.
+Supportive functions are placed in the `R` folder. These functions need to be sourced in `2. Abbreviated Smell Test SST-ID.qmd` and `4. Combine UPSIT and SST-ID.qmd`.
 
 1. `itemAUC.R`: calculate each scent's AUC values and rank them, using cross-validation
 2. `subsetAUC.R`: calculate each subset's AUC values.
