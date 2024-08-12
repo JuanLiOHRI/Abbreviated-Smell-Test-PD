@@ -1,0 +1,1197 @@
+---
+title: "Abbreviated Smell Test - UPSIT"
+author: "Juan Li"
+date: 2024-03-01
+format: pptx
+editor: visual
+---
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+library(dplyr)      # Data manipulation
+library(tidyr)      # Data manipulation: pivot_
+library(stringr)    # String manipulation
+library(ggplot2)    # Data visualization
+library(ggpubr)     # Combine multiple ggplot2 panels - ggarrange
+library(pROC)       # ROC, AUC
+
+source("R/itemAUC.R", echo=TRUE)   # Ranking individual scents based on their AUC values - with cross validation
+source("R/subsetAUC.R", echo=TRUE) # Subset AUC values - with cross validation
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+df_O <- read.csv("Ottawa_cut.csv", header = TRUE)
+diagnosis_color <- read.csv("diagnosis colors.csv", header = TRUE)
+group_name <- c("HC", "PD/DLB", "MSA/PSP")
+df_O$group <- factor(df_O$group, levels = group_name)
+df_O$diagnosis <- factor(df_O$diagnosis, levels = intersect(diagnosis_color$diagnosis, unique(df_O$diagnosis)))
+df_O$olfaction <- factor(df_O$olfaction, levels = c("Normal", "Reduced"))
+
+group.colors <- c("#1F78B4",  "#AF026C")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| 
+# Slice the data - only focus on HC and PD from now on
+# save all the data
+data_all <- df_O
+
+# Remove Other in Ottawa trial
+data <- data_all %>% filter(group %in% group_name[1:2]) %>% droplevels()
+```
+
+## Item/scent ranking
+
+Rank the UPSIT questions using Ottawa trial data, with 10-fold cross validation (CV).
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+n <- 40
+
+# key
+key   <- unlist(unname(read.csv("UPSIT_key.csv", header = FALSE)))
+
+# noption
+noption <- rep(5,n) # including an extra option for missing/spoiled responses
+
+# ScoreList
+ScoreList <- list() # option scores
+for (item in 1:n){
+  scorei <- rep(0,noption[item])
+  scorei[key[item]] <- 1
+  ScoreList[[item]] <- scorei
+}
+
+# Item labels
+optlab  <- unname(read.csv("UPSIT_option.csv", header = FALSE))
+optionLab <- list()
+for (i in 1:n)
+{
+  if (noption[i] == 4) {
+    optionLab[[i]] <- unlist(optlab[i,])
+  } else {
+    optionLab[[i]] <- c(unlist(optlab[i,]), "5-missing")
+  }
+}
+
+# item label
+itemLab <- rep("", n)
+itemLab2 <- rep("", n)
+for (i in 1:n) {
+  if (i < 10) {
+    itemLab[i] <- paste("0", i, "-", strsplit(optionLab[[i]][key[i]], "-")[[1]][2], sep = "")
+  } else {
+    itemLab[i] <- paste(i, "-", strsplit(optionLab[[i]][key[i]], "-")[[1]][2], sep = "")
+  }
+  itemLab2[i] <- strsplit(optionLab[[i]][key[i]], "-")[[1]][2]
+}
+
+optList <- list(itemLab=itemLab2, optLab=optionLab, optScr=ScoreList)
+itemLab
+itemLab2
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+dfAUC_O <- data %>% select(ID, UPSIT.01.B:UPSIT.40.B, UPSIT, group) 
+ind1 <- which(names(dfAUC_O) == "UPSIT.01.B")
+ind2 <- which(names(dfAUC_O) == "UPSIT.40.B")
+itmvec <- names(dfAUC_O)[ind1:ind2]
+resList <- itemAUC(dfAUC_O$group, dfAUC_O %>% select(all_of(itmvec)), 
+                   nfold = 10, seed = 10, group_name = group_name[1:2], item_label = itemLab)
+
+itmAUC <- resList$itmAUC
+df_O_ave <- resList$df_ave
+item_rank <- resList$rankList[[1]]
+scent_rank <- unlist(str_split(item_rank, "-"))[seq(2,80, by = 2)]
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-height: 6
+#| fig-width: 6
+
+dfPlt <- itmAUC
+df_rank_O <- data.frame(item = item_rank,
+                      rank_ave = 1:n)
+dfPlt <- dfPlt %>% left_join(df_rank_O, by = "item")
+dfPlt$item <- factor(dfPlt$item, levels = item_rank)
+levels(dfPlt$item) <- scent_rank
+
+scent_shared <- c("Orange", "Turpentine", "Lemon", "Leather", "Cinnamon", "Pineapple",
+                  "Clove", "Rose", "Banana", "Mint", "Licorice")
+scent_face <- rep("plain", n)
+scent_face[which(scent_rank %in% scent_shared)] <- "bold.italic"
+
+pFigure_3a <- ggplot(dfPlt, aes(item, auc, fill = rank_ave, color = rank_ave)) + 
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75), alpha = 0.5)+
+  viridis::scale_fill_viridis(option = "C", direction = -1, begin = 0, end = 0.8)+
+  viridis::scale_color_viridis(option = "C", direction = -1, begin = 0, end = 0.8)+
+  ylim(0.5, 0.8) +
+  coord_flip()+
+  labs(y = "Single-scent AUC across 10 folds")+
+  theme_bw()+
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        text = element_text(size = 12),
+        axis.text.y=
+          element_text(face= scent_face))
+```
+
+Proportion of answer right in each group
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+df <- data.frame(group = group_name[1:2])
+for (i in 1:n) {
+  if (i < 10) {
+    col <- paste0("UPSIT.0",i, ".B")
+  } else {
+    col <- paste0("UPSIT.",i, ".B")
+  }
+  
+  dfi <- data %>% select(group, all_of(col)) 
+  names(dfi)[2] <- "col"
+  
+  dfi <- dfi %>% 
+    group_by(group) %>% 
+    summarise(n = n(),
+              new = sum(col)) %>% 
+    mutate(new2 = round(new/n*100,2))
+  names(dfi)[which(names(dfi) == "new2")] <- itemLab[i]
+  df <- left_join(df, dfi %>% select(-c(n,new)), by = "group")
+}
+
+df_long <- df %>% pivot_longer(-group, names_to = "item", values_to = "prop") 
+
+df_long <- df_long %>% 
+  mutate(prop2 = ifelse(group != group_name[2], -prop, prop))
+df_long$group <- factor(df_long$group, levels = group_name)
+df_long$item <- factor(df_long$item, levels = item_rank)
+levels(df_long$item) <- scent_rank
+```
+
+### Figure 3 (c), (d)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 9
+#| fig-height: 7.5
+
+df_long$group <- factor(df_long$group, levels = group_name[1:2])
+p1 <- ggplot(df_long, aes(item, prop2, fill = group))+
+  geom_col(position = "identity", width = 0.5, alpha = 0.8) +
+  scale_fill_manual(values = group.colors)+
+  labs(y = "% of correct scent identification")+
+  coord_flip()+
+  scale_y_continuous(limits = c(-100,100), breaks = c(-100, -50, 0, 50, 100), labels = c(100, 50, 0, 50, 100))+
+  theme_bw() +
+  theme(legend.position = c(0.85, 0.9),
+        legend.title = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.y = element_blank(),
+        text = element_text(size=11))
+print(ggarrange(pFigure_3a, p1, ncol = 2, widths = c(1, 0.8)))
+
+```
+
+### Supplemental Figure 2 (b)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 9
+#| fig-height: 7.5
+
+df_D_diff <- as_tibble(t(df[,-1]))
+names(df_D_diff) <- group_name[1:2]
+df_D_diff <- as.data.frame(df_D_diff) 
+names(df_D_diff) <- c("HC", "PD")
+df_D_diff <- df_D_diff%>% 
+  mutate(diff = HC - PD)
+df_D_diff$item <- itemLab
+df_D_diff$item <- factor(df_D_diff$item, levels = item_rank)
+levels(df_D_diff$item) <- scent_rank
+p2 <- ggplot(df_D_diff, aes(item, diff, fill = as.numeric(item)))+
+  geom_col(width = 0.5, alpha = 0.8) +
+  viridis::scale_fill_viridis(option = "C", direction = -1, begin = 0, end = 0.8)+
+  labs(y = paste0("% ", group_name[1], " - % ", group_name[2])) +
+  coord_flip()+
+  theme_bw()+
+  theme(axis.title.y = element_blank(),
+        text = element_text(size=11),
+        legend.position = "none") +
+  ylim(0, 52) 
+print(p2)
+```
+
+## Compare with other published item rankings
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+rankings <- read.csv("Published rankings.csv", header = TRUE)
+
+# This study
+type_vec_Li <- c()
+indList_Li<- list()
+vec_Li <- as.numeric(gsub("([0-9]+).*$", "\\1", rev(df_O_ave$item)))
+for (i in 1:n) {
+  ind_top_i <- vec_Li[1:i]
+  indList_Li[[i]] <- ind_top_i
+  type_vec_Li[i] <- paste("top", i)
+}
+type_vec1     <- type_vec_Li
+indList1      <- indList_Li
+author_vec1   <- rep("This study", length(vec_Li))
+author_order1 <- c("This study")
+
+# Bohnen ranking
+type_vec_Bohnen <- c()
+indList_Bohnen<- list()
+vec_Bohnen <- rankings$Bohnen[which(!is.na(rankings$Bohnen))]
+for (i in 1:n) {
+  ind_top_i <- vec_Bohnen[1:i]
+  indList_Bohnen[[i]] <- ind_top_i
+  type_vec_Bohnen[i] <- paste("Bohnen: top", i)
+}
+type_vec1     <- c(type_vec1, type_vec_Bohnen)
+indList1      <- c(indList1, indList_Bohnen)
+author_vec1   <- c(author_vec1, rep("Bohnen", length(vec_Bohnen)))
+author_order1 <- c(author_order1,"Bohnen")
+
+# Hawkes ranking
+type_vec_Hawkes <- c()
+indList_Hawkes<- list()
+vec_Hawkes <- rankings$Hawkes[which(!is.na(rankings$Hawkes))]
+for (i in 1:n) {
+  ind_top_i <- vec_Hawkes[1:i]
+  indList_Hawkes[[i]] <- ind_top_i
+  type_vec_Hawkes[i] <- paste("Hawkes: top", i)
+}
+type_vec1     <- c(type_vec1, type_vec_Hawkes)
+indList1      <- c(indList1, indList_Hawkes)
+author_vec1   <- c(author_vec1, rep("Hawkes", length(vec_Hawkes)))
+author_order1 <- c(author_order1,"Hawkes")
+
+# Joseph ranking
+type_vec_Joseph <- c()
+indList_Joseph<- list()
+vec_Joseph <- rankings$Joseph[which(!is.na(rankings$Joseph))]
+for (i in 1:n) {
+  ind_top_i <- vec_Joseph[1:i]
+  indList_Joseph[[i]] <- ind_top_i
+  type_vec_Joseph[i] <- paste("Joseph: top", i)
+}
+type_vec1     <- c(type_vec1, type_vec_Joseph)
+indList1      <- c(indList1, indList_Joseph)
+author_vec1   <- c(author_vec1, rep("Joseph", length(vec_Joseph)))
+author_order1 <- c(author_order1,"Joseph")
+
+# Morley ranking
+type_vec_Morley <- c()
+indList_Morley<- list()
+vec_Morley <- rankings$Morley[which(!is.na(rankings$Morley))]
+for (i in 1:12) {
+  ind_top_i <- vec_Morley[1:i]
+  indList_Morley[[i]] <- ind_top_i
+  type_vec_Morley[i] <- paste("Morley: top", i)
+}
+type_vec1     <- c(type_vec1, type_vec_Morley)
+indList1      <- c(indList1, indList_Morley)
+author_vec1   <- c(author_vec1, rep("Morley", length(vec_Morley)))
+author_order1 <- c(author_order1,"Morley")
+```
+
+### Figure 4 (b)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-height: 10
+#| fig-width: 8
+
+rank_comp <- data.frame(item = c(itemLab[vec_Li],
+                                 itemLab[vec_Bohnen],
+                                 itemLab[vec_Hawkes],
+                                 itemLab[vec_Joseph],
+                                 #itemLab[vec_Double],
+                                 itemLab[vec_Morley]),
+                        rank = c(rep(seq(40,1,by=-1),4), seq(40,29,by=-1)),
+                        author = author_vec1)
+rank_comp$item <- factor(rank_comp$item, levels = item_rank)
+rank_comp$item_ind <- as.numeric(gsub("([0-9]+).*$", "\\1", rank_comp$item))
+
+rank_ave <- rank_comp %>% group_by(item) %>% summarise(mean = mean(rank)) %>% arrange(mean)
+rank_ave$item_ind <- as.numeric(gsub("([0-9]+).*$", "\\1", rank_ave$item))
+rank_ave$author <- rep("Average", nrow(rank_ave))
+rank_ave$rank <- 1:n
+rank_ave_long <- rank_ave %>% pivot_longer(-c(item, item_ind, author), names_to = "type", values_to = "rank") %>%
+  mutate(author = ifelse(type == "mean", "Average-mean", "Average-rank"))
+
+rank_comp <- bind_rows(rank_ave, rank_comp)
+rank_comp$author <- factor(rank_comp$author, levels = c("Average", author_order1))
+
+top_A<- as.vector(head(rev(rank_ave$item),12))
+bottom_A <- as.vector(tail(rev(rank_ave$item),5))
+
+temp <- rank_ave %>% select(item, rank)
+names(temp)[2] <- "rank_ave"
+temp$item <- as.character(temp$item)
+rank_comp <- rank_comp %>% left_join(temp, by = "item")
+
+rank_comp$item_ind[rank_comp$author == "Average"] <- rank_comp$item[rank_comp$author == "Average"]
+rank_comp$author2 <- as.numeric(rank_comp$author)
+rank_comp$author2[rank_comp$author2 == 1] <- 1.3
+
+ggplot(rank_comp, 
+       aes(author, rank, color = rank_ave, group = item, label = item_ind))+
+  geom_text()+
+  geom_line(aes(author2, rank, color = rank_ave), linetype = "dashed", size = 0.1)+
+  geom_text(data = rank_comp %>% filter(item %in% top_A),
+            aes(author, rank, color = rank_ave, group = item, label = item_ind))+
+  geom_line(data = rank_comp %>% filter(item %in% top_A),
+            aes(author2, rank, color = rank_ave, group = item, label = item_ind), size = 0.2)+
+  viridis::scale_color_viridis(option = "C", direction = -1, begin = 0, end = 0.8)+
+  #scale_color_continuous(low = "blue", high = "red")+
+  theme_bw()+
+  theme(legend.position =  "none",
+        text = element_text(size=14),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.text.x=
+          element_text(face= c("bold", "bold.italic", rep("plain", 5))))+
+  labs(y = "Rank")
+
+# Save the rankings
+write.csv(rank_comp, "UPSIT_rankings.csv", row.names = FALSE)
+```
+
+## Subset AUC
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+type_vec_Average <- c()
+indList_Average<- list()
+vec_Average <- rev(as.numeric(rank_ave$item_ind))
+for (i in 1:n) {
+  ind_top_i <- vec_Average[1:i]
+  indList_Average[[i]] <- ind_top_i
+  type_vec_Average[i] <- paste("Average: top", i)
+}
+
+# add the shared ones
+df_shared <- read.csv("scent_shared.csv", header = TRUE)
+type_vec_Shared <- c()
+indList_Shared<- list()
+vec_Shared <- as.numeric(df_shared$ind_UPSIT)
+for (i in 1:length(vec_Shared)) {
+  ind_top_i <- vec_Shared[1:i]
+  indList_Shared[[i]] <- ind_top_i
+  type_vec_Shared[i] <- paste("Shared: top", i)
+}
+
+# combine all
+type_vec <- c(vec_Shared, type_vec_Average, type_vec1)
+indList <- c(indList_Shared, indList_Average, indList1)
+author_vec <- c(rep("Shared", 11), rep("Average", n), author_vec1)
+author_order <- c("Shared", "Average",author_order1)
+#c("#1F78B4", "#E31A1C", "#A6CEE3", "darkred", "#B2DF8A", "#33A02C", "#FB9A99", "#FDBF6F")
+author_cols <- c("red", "gray28", "#FF7F00", "#A6CEE3","purple","forestgreen", "brown")
+
+# number of distinct subset
+indList_ordered <- indList
+for (i in 1:length(indList)) {
+  indList_ordered[[i]] <- indList[[i]][order(indList[[i]])]
+}
+length(unique(indList_ordered))
+```
+
+### Figure 6 (d)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 12
+#| fig-height: 4
+
+# development
+result_dev <- subsetAUC(dfAUC_O$group, dfAUC_O %>% select(all_of(itmvec)), indList,
+                        nfold = 10, seed = 10,
+                        group_name = group_name[1:2], ind_subset = NULL,
+                        type_vec = type_vec, 
+                        rank_vec = author_vec, rank_order = author_order, rank_cols = author_cols, 
+                        level1 = author_order[1:2], level2 = author_order[3],
+                        titlestr = "Ottawa Trial: training within 10-fold CV",
+                        legend.posistion = c(0.7,0.35),
+                        ymin = 0.6, ymax = 0.95, new_line = 0.9,
+                        ylab = "Mean sub-test AUC value over 10 folds",
+                        xlab = "Number of UPSIT scents in each subset")
+
+# validation
+result_val <- subsetAUC(dfAUC_O$group, dfAUC_O %>% select(all_of(itmvec)), indList,
+                        nfold = 10, seed = 10, is_train = FALSE,
+                        group_name = group_name[1:2], ind_subset = NULL,
+                        type_vec = type_vec, 
+                        rank_vec = author_vec, rank_order = author_order, rank_cols = author_cols, 
+                        level1 = author_order[1:2], level2 = author_order[3],
+                        titlestr = "Internal validation: Ottawa Trial with 10-fold CV", ci = FALSE,
+                        legend.posistion = c(0.9,0.35),
+                        ymin = 0.6, ymax = 0.95, new_line = 0.9,
+                        ylab = "Mean sub-test AUC value over 10 folds",
+                        xlab = "Number of UPSIT scents in each subset")
+
+print(result_val$p)
+```
+
+## PROBE for external validation
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+df_P <- read.csv("PROBE_cut.csv", header = TRUE)
+df_P$group <- factor(df_P$group, levels = c("HC", "PD/DLB", "MSA/PSP"))
+df_P$olfaction <- factor(df_P$olfaction, levels = c("Normal", "Reduced"))
+df_P$diagnosis <- factor(df_P$diagnosis, levels = intersect(diagnosis_color$diagnosis, unique(df_P$diagnosis)))
+
+df_P <- df_P %>% 
+  filter(!is.na(diagnosis), !is.na(UPSIT)) %>% 
+  droplevels() 
+
+# Slice the data - only focus on HC and PD from now on
+# save all the data
+data_all <- df_P
+
+# Remove Other in Ottawa trial
+data <- data_all %>% filter(group != "MSA/PSP") %>% droplevels()
+```
+
+### Figure 6 (e)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 12
+#| fig-height: 4
+
+df_valid_P <- df_P %>% 
+  filter(group %in% c("HC", "PD/DLB")) %>% 
+  select(ID, UPSIT.01.B:UPSIT.40.B, group) 
+
+result_val_P <- subsetAUC(df_valid_P$group, df_valid_P %>% select(all_of(itmvec)), indList, 
+                         group_name = c("HC", "PD/DLB"), ind_subset = NULL,
+                         type_vec = type_vec, 
+                         rank_vec = author_vec, 
+                         rank_order = author_order, rank_cols = author_cols,
+                         level1 = author_order[1:2], level2 = author_order[3],
+                         titlestr = "External validation: PROBE", ci = FALSE,
+                         legend.posistion = c(0.9,0.35),
+                         ymin = 0.6, ymax = 0.95, new_line = 0.9,
+                         ylab = "Sub-test AUC value",
+                         xlab = "Number of UPSIT scents in each subset")
+
+print(result_val_P$p)
+```
+
+## Item Characteristic Curve (ICC)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+library(TestGardener)
+source("R/make.dataList.R", echo=TRUE)
+source("R/Wbinsmth.R", echo=TRUE)
+source("R/eval_surp.R", echo=TRUE)
+source("R/ICC.plot.R", echo=TRUE)
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+U_PD <- unname(as.matrix(df_O %>% filter(group == group_name[2]) %>% 
+                           select(UPSIT.01.M:UPSIT.40.M)))
+
+U_HC <- unname(as.matrix(df_O %>% filter(group == group_name[1]) %>% 
+                           select(UPSIT.01.M:UPSIT.40.M)))
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+set.seed(100)
+PD_dataList <- make.dataList(U_PD, key, optList, order = 2)
+set.seed(100)
+HC_dataList <- make.dataList(U_HC, key, optList, order = 2)
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+theta_PD    <- PD_dataList$percntrnk
+thetaQnt_PD  <- PD_dataList$thetaQnt
+WfdResult_PD <- Wbinsmth(theta_PD, PD_dataList)
+theta0_PD <- theta_PD
+
+WfdList_PD <- WfdResult_PD$WfdList
+binctr_PD  <- WfdResult_PD$aves
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+theta_HC     <- HC_dataList$percntrnk
+thetaQnt_HC  <- HC_dataList$thetaQnt
+WfdResult_HC <- Wbinsmth(theta_HC, HC_dataList)
+theta0_HC    <- theta_HC
+
+WfdList_HC <- WfdResult_HC$WfdList
+binctr_HC  <- WfdResult_HC$aves
+```
+
+### Figure 5, Supplemental Figure 3, Supplemental Figure 5
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 7
+#| fig-height: 4
+
+indfine <- seq(0,100,len=101)
+Qvec    <- c(5,25,50,75,95)
+
+df_rank_O$item_ind <- as.numeric(gsub("([0-9]+).*$", "\\1", df_rank_O$item))
+df_rank_O <- df_rank_O %>% arrange(desc(rank_ave))
+
+ind <- df_rank_O$item_ind
+for (i in ind) {
+  p1 <- ICC.plot(indfine, WfdList_PD, PD_dataList, Qvec, binctr_PD, plotType = "P",
+                 data_point = FALSE, plotindex = i, titlestr = "PD/DLB", 
+                 lgdlab=14, axisttl = 14, axistxt = 14, plotMissing = FALSE)[[1]]
+  p2 <- ICC.plot(indfine, WfdList_HC, HC_dataList, Qvec, binctr_HC, plotType = "P",
+                 data_point = FALSE, plotindex = i, titlestr = "HC", ylab = "", 
+                 lgdlab=14, axisttl = 14, axistxt = 14, plotMissing = FALSE)[[1]]
+  
+  print(ggarrange(p1, p2, ncol=2, common.legend = TRUE, legend = "bottom"))
+}
+```
+
+## PROBE - PD/DLB vs MSA/PSP
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+data <- data_all %>% filter(group != "HC") %>% droplevels()
+dfAUC_P <- data %>% select(ID, UPSIT.01.B:UPSIT.40.B, UPSIT, group) 
+ind1 <- which(names(dfAUC_P) == "UPSIT.01.B")
+ind2 <- which(names(dfAUC_P) == "UPSIT.40.B")
+itmvec <- names(dfAUC_P)[ind1:ind2]
+resList <- itemAUC(dfAUC_P$group, dfAUC_P %>% select(all_of(itmvec)), 
+                   nfold = 10, seed = 10, group_name = group_name[3:2], item_label = itemLab)
+
+itmAUC <- resList$itmAUC
+df_P_ave <- resList$df_ave
+item_rank <- resList$rankList[[1]]
+scent_rank <- unlist(str_split(item_rank, "-"))[seq(2,80, by = 2)]
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-height: 6
+#| fig-width: 6
+
+dfPlt <- itmAUC
+df_rank_P <- data.frame(item = item_rank,
+                      rank_ave = 1:n)
+dfPlt <- dfPlt %>% left_join(df_rank_P, by = "item")
+dfPlt$item <- factor(dfPlt$item, levels = item_rank)
+levels(dfPlt$item) <- scent_rank
+
+pFigure_3a <- ggplot(dfPlt, aes(item, auc, fill = rank_ave, color = rank_ave)) + 
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75), alpha = 0.5)+
+  viridis::scale_fill_viridis(option = "C", direction = -1, begin = 0, end = 0.8)+
+  viridis::scale_color_viridis(option = "C", direction = -1, begin = 0, end = 0.8)+
+  ylim(0.5, 0.7) +
+  coord_flip()+
+  labs(y = "Single-scent AUC across 10 folds")+
+  theme_bw()+
+  theme(legend.position = "none",
+        axis.title.y = element_blank(),
+        text = element_text(size = 12))
+```
+
+Proportion of answer right in each group
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+df <- data.frame(group = group_name[c(3,2)])
+for (i in 1:n) {
+  if (i < 10) {
+    col <- paste0("UPSIT.0",i, ".B")
+  } else {
+    col <- paste0("UPSIT.",i, ".B")
+  }
+  
+  dfi <- data %>% select(group, all_of(col)) 
+  names(dfi)[2] <- "col"
+  
+  dfi <- dfi %>% 
+    group_by(group) %>% 
+    summarise(n = n(),
+              new = sum(col)) %>% 
+    mutate(new2 = round(new/n*100,2))
+  names(dfi)[which(names(dfi) == "new2")] <- itemLab[i]
+  df <- left_join(df, dfi %>% select(-c(n,new)), by = "group")
+}
+
+df_long <- df %>% pivot_longer(-group, names_to = "item", values_to = "prop") 
+
+df_long <- df_long %>% 
+  mutate(prop2 = ifelse(group != group_name[2], -prop, prop))
+df_long$group <- factor(df_long$group, levels = group_name)
+df_long$item <- factor(df_long$item, levels = item_rank)
+levels(df_long$item) <- scent_rank
+```
+
+### Supplemental Figure 6 (a)-(c)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 10
+#| fig-height: 7.5
+
+df_long$group <- factor(df_long$group, levels = group_name[c(3,2)])
+p1 <- ggplot(df_long, aes(item, prop2, fill = group))+
+  geom_col(position = "identity", width = 0.5, alpha = 0.8) +
+  scale_fill_manual(values = c("forestgreen", group.colors[2]))+
+  labs(y = "% of correct scent identification")+
+  coord_flip()+
+  scale_y_continuous(limits = c(-100,100), breaks = c(-100, -50, 0, 50, 100), labels = c(100, 50, 0, 50, 100))+
+  theme_bw() +
+  theme(legend.position = c(0.85, 0.9),
+        legend.title = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.y = element_blank(),
+        text = element_text(size=11))
+
+df_D_diff <- as_tibble(t(df[,-1]))
+names(df_D_diff) <- group_name[c(3,2)]
+df_D_diff <- as.data.frame(df_D_diff) 
+names(df_D_diff) <- c("MSA", "PD")
+df_D_diff <- df_D_diff%>% 
+  mutate(diff = MSA - PD)
+df_D_diff$item <- itemLab
+df_D_diff$item <- factor(df_D_diff$item, levels = item_rank)
+levels(df_D_diff$item) <- scent_rank
+p2 <- ggplot(df_D_diff, aes(item, diff, fill = as.numeric(item)))+
+  geom_col(width = 0.5, alpha = 0.8) +
+  viridis::scale_fill_viridis(option = "C", direction = -1, begin = 0, end = 0.8)+
+  labs(y = paste0("% ", group_name[1], " - % ", group_name[2])) +
+  coord_flip()+
+  theme_bw()+
+  theme(axis.text.y = element_blank(),
+        axis.title.y = element_blank(),
+        text = element_text(size=11),
+        legend.position = "none") 
+ggarrange(pFigure_3a, p1, p2, ncol = 3, widths = c(1, 0.8, 0.8))
+```
+
+## Subset AUC
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+# This study
+type_vec_Li <- c()
+indList_Li<- list()
+vec_Li <- as.numeric(gsub("([0-9]+).*$", "\\1", rev(df_P_ave$item)))
+for (i in 1:n) {
+  ind_top_i <- vec_Li[1:i]
+  indList_Li[[i]] <- ind_top_i
+  type_vec_Li[i] <- paste("top", i)
+}
+type_vec     <- type_vec_Li
+indList      <- indList_Li
+author_vec   <- rep("This study", length(vec_Li))
+author_order <- c("This study")
+author_cols <- c("gray28")
+```
+
+### Supplemental Figure 6 (d)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 12
+#| fig-height: 4
+
+# validation
+result_val2 <- subsetAUC(dfAUC_P$group, dfAUC_P %>% select(all_of(itmvec)), indList,
+                        nfold = 10, seed = 10, is_train = FALSE,
+                        group_name = group_name[c(3,2)],
+                        type_vec = type_vec, 
+                        rank_vec = author_vec, rank_order = author_order, rank_cols = author_cols, 
+                        level1 = author_order[1],
+                        titlestr = "PROBE: validation with 10-fold CV", ci = FALSE,
+                        legend.posistion = "none",
+                        ymin = 0.6, ymax = 0.85, new_line = 0.8,
+                        ylab = "Mean sub-test AUC value over 10 folds",
+                        xlab = "Number of UPSIT scents in each subset")
+
+
+print(result_val2$p)
+```
+
+## % correct by sex - Ottawa Trial
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+df_M <- data.frame(group = group_name)
+for (i in 1:n) {
+  if (i < 10) {
+    col <- paste0("UPSIT.0",i, ".B")
+  } else {
+    col <- paste0("UPSIT.",i, ".B")
+  }
+  
+  dfi <- df_O %>% filter(sex == "Male") %>% select(group, all_of(col)) 
+  names(dfi)[2] <- "col"
+  
+  dfi <- dfi %>% 
+    group_by(group) %>% 
+    summarise(n = n(),
+              new = sum(col)) %>% 
+    mutate(new2 = round(new/n*100,2))
+  names(dfi)[which(names(dfi) == "new2")] <- itemLab[i]
+  df_M <- left_join(df_M, dfi %>% select(-c(n,new)), by = "group")
+}
+
+df_long_M <- df_M %>% pivot_longer(-group, names_to = "item", values_to = "prop") 
+
+df_long_M <- df_long_M %>% 
+  mutate(prop2 = ifelse(group != group_name[2], -prop, prop))
+df_long_M$group <- factor(df_long_M$group, levels = group_name)
+
+df_long_M$item <- factor(df_long_M$item, levels = item_rank)
+levels(df_long_M$item) <- scent_rank
+
+saveRDS(df_long_M, "df_sex_O_M.rds")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+df_F <- data.frame(group = group_name)
+for (i in 1:n) {
+  if (i < 10) {
+    col <- paste0("UPSIT.0",i, ".B")
+  } else {
+    col <- paste0("UPSIT.",i, ".B")
+  }
+  
+  dfi <- df_O %>% filter(sex == "Female") %>% select(group, all_of(col)) 
+  names(dfi)[2] <- "col"
+  
+  dfi <- dfi %>% 
+    group_by(group) %>% 
+    summarise(n = n(),
+              new = sum(col)) %>% 
+    mutate(new2 = round(new/n*100,2))
+  names(dfi)[which(names(dfi) == "new2")] <- itemLab[i]
+  df_F <- left_join(df_F, dfi %>% select(-c(n,new)), by = "group")
+}
+
+df_long_F <- df_F %>% pivot_longer(-group, names_to = "item", values_to = "prop") 
+
+df_long_F <- df_long_F %>% 
+  mutate(prop2 = ifelse(group != group_name[2], -prop, prop))
+df_long_F$group <- factor(df_long_F$group, levels = group_name)
+
+df_long_F$item <- factor(df_long_F$item, levels = item_rank)
+levels(df_long_F$item) <- scent_rank
+
+saveRDS(df_long_F, "df_sex_O_F.rds")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+df_M_diff <- as_tibble(t(df_M[1:2,-1]))
+names(df_M_diff) <- group_name[1:2]
+df_M_diff <- as.data.frame(df_M_diff) %>% 
+  mutate(diff = HC-`PD/DLB`) 
+df_M_diff$item <- itemLab
+df_M_diff$item <- factor(df_M_diff$item, levels = item_rank)
+levels(df_M_diff$item) <- scent_rank
+df_M_diff$sex <- rep("Male", nrow(df_M_diff))
+
+df_F_diff <- as_tibble(t(df_F[1:2,-1]))
+names(df_F_diff) <- group_name[1:2]
+df_F_diff <- as.data.frame(df_F_diff) %>% 
+  mutate(diff = HC-`PD/DLB`) 
+df_F_diff$item <- itemLab
+df_F_diff$item <- factor(df_F_diff$item, levels = item_rank)
+levels(df_F_diff$item) <- scent_rank
+df_F_diff$sex <- rep("Female", nrow(df_F_diff))
+
+dfPlt <- bind_rows(df_F_diff, df_M_diff)
+dfPlt <- dfPlt %>% 
+  mutate(diff = ifelse(sex == "Female", -diff, diff))
+
+saveRDS(dfPlt, "df_sex_O.rds")
+```
+
+## % correct by sex - PROBE
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+df_M <- data.frame(group = group_name)
+for (i in 1:n) {
+  if (i < 10) {
+    col <- paste0("UPSIT.0",i, ".B")
+  } else {
+    col <- paste0("UPSIT.",i, ".B")
+  }
+  
+  dfi <- df_P %>% filter(sex == "Male") %>% select(group, all_of(col)) 
+  names(dfi)[2] <- "col"
+  
+  dfi <- dfi %>% 
+    group_by(group) %>% 
+    summarise(n = n(),
+              new = sum(col)) %>% 
+    mutate(new2 = round(new/n*100,2))
+  names(dfi)[which(names(dfi) == "new2")] <- itemLab[i]
+  df_M <- left_join(df_M, dfi %>% select(-c(n,new)), by = "group")
+}
+
+df_long_M <- df_M %>% pivot_longer(-group, names_to = "item", values_to = "prop") 
+
+df_long_M <- df_long_M %>% 
+  mutate(prop2 = ifelse(group != group_name[2], -prop, prop))
+df_long_M$group <- factor(df_long_M$group, levels = group_name)
+
+df_long_M$item <- factor(df_long_M$item, levels = item_rank)
+levels(df_long_M$item) <- scent_rank
+
+saveRDS(df_long_M, "df_sex_P_M.rds")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+df_F <- data.frame(group = group_name)
+for (i in 1:n) {
+  if (i < 10) {
+    col <- paste0("UPSIT.0",i, ".B")
+  } else {
+    col <- paste0("UPSIT.",i, ".B")
+  }
+  
+  dfi <- df_P %>% filter(sex == "Female") %>% select(group, all_of(col)) 
+  names(dfi)[2] <- "col"
+  
+  dfi <- dfi %>% 
+    group_by(group) %>% 
+    summarise(n = n(),
+              new = sum(col)) %>% 
+    mutate(new2 = round(new/n*100,2))
+  names(dfi)[which(names(dfi) == "new2")] <- itemLab[i]
+  df_F <- left_join(df_F, dfi %>% select(-c(n,new)), by = "group")
+}
+
+df_long_F <- df_F %>% pivot_longer(-group, names_to = "item", values_to = "prop") 
+
+df_long_F <- df_long_F %>% 
+  mutate(prop2 = ifelse(group != group_name[2], -prop, prop))
+df_long_F$group <- factor(df_long_F$group, levels = group_name)
+
+df_long_F$item <- factor(df_long_F$item, levels = item_rank)
+levels(df_long_F$item) <- scent_rank
+
+saveRDS(df_long_F, "df_sex_P_F.rds")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+df_M_diff <- as_tibble(t(df_M[1:2,-1]))
+names(df_M_diff) <- group_name[1:2]
+df_M_diff <- as.data.frame(df_M_diff) %>% 
+  mutate(diff = HC-`PD/DLB`) 
+df_M_diff$item <- itemLab
+df_M_diff$item <- factor(df_M_diff$item, levels = item_rank)
+levels(df_M_diff$item) <- scent_rank
+df_M_diff$sex <- rep("Male", nrow(df_M_diff))
+
+df_F_diff <- as_tibble(t(df_F[1:2,-1]))
+names(df_F_diff) <- group_name[1:2]
+df_F_diff <- as.data.frame(df_F_diff) %>% 
+  mutate(diff = HC-`PD/DLB`) 
+df_F_diff$item <- itemLab
+df_F_diff$item <- factor(df_F_diff$item, levels = item_rank)
+levels(df_F_diff$item) <- scent_rank
+df_F_diff$sex <- rep("Female", nrow(df_F_diff))
+
+dfPlt <- bind_rows(df_F_diff, df_M_diff)
+dfPlt <- dfPlt %>% 
+  mutate(diff = ifelse(sex == "Female", -diff, diff))
+
+saveRDS(dfPlt, "df_sex_P.rds")
+```
+
+## % correct by age - Ottawa Trial
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+Qvec <- quantile(df_O$age) 
+
+df_O <- df_O %>% 
+  mutate(age_cat = case_when(
+    age <= Qvec[2] ~ "bin1",
+    age <= Qvec[3] ~ "bin2",
+    age <= Qvec[4] ~ "bin3",
+    TRUE ~ "bin4"
+  ))
+bin_vec <- c("bin1","bin2","bin3","bin4")
+
+df_long_Age <- data.frame()
+for (i_bin in 1:4) {
+  df_age <- data.frame(group = group_name)
+  for (i in 1:n) {
+    if (i < 10) {
+      col <- paste0("UPSIT.0",i, ".B")
+    } else {
+      col <- paste0("UPSIT.",i, ".B")
+    }
+    
+    dfi <- df_O %>% filter(age_cat == bin_vec[i_bin]) %>% select(group, all_of(col)) 
+    names(dfi)[2] <- "col"
+    
+    dfi <- dfi %>% 
+      group_by(group) %>% 
+      summarise(n = n(),
+                new = sum(col)) %>% 
+      mutate(new2 = round(new/n*100,2))
+    names(dfi)[which(names(dfi) == "new2")] <- itemLab[i]
+    df_age <- left_join(df_age, dfi %>% select(-c(n,new)), by = "group")
+  }
+  
+  df_long_age <- df_age %>% pivot_longer(-group, names_to = "item", values_to = "prop") 
+  df_long_age$group <- factor(df_long_age$group, levels = group_name)
+  
+  df_long_age <- df_long_age %>% 
+    mutate(age = round((Qvec[i_bin]+Qvec[i_bin+1])/2))
+  
+  df_long_Age <- bind_rows(df_long_Age, df_long_age)
+}
+
+Wnbasis <- 2
+Wnorder <- min(Wnbasis, 5)
+Wbasis  <- fda::create.bspline.basis(c(40, 85), Wnbasis, Wnorder) 
+WfdPar  <- fda::fdPar(Wbasis)
+
+nfine <- 101
+agefine <- seq(40,85, length = nfine)
+binctr <- c(50,62,68,77)
+
+df_fine <- data.frame()
+for (i in 1:n) {
+  df_W <- df_long_Age %>% filter(item == item_rank[i]) %>% pivot_wider(names_from = group, values_from = prop)
+  bin <- as.matrix(df_W[,3:4])
+  
+  result  <- fda::smooth.basis(binctr, bin, WfdPar)
+  Wfdi    <- result$fd
+  Wmatfine   <- fda::eval.fd(agefine, Wfdi)
+  
+  dfi <- data.frame(group = c(rep(group_name[1], nfine), rep(group_name[2], nfine)),
+                    age = rep(agefine, 2),
+                    prop = c(Wmatfine[,1], Wmatfine[,2]),
+                    item = rep(item_rank[i], nfine*2))
+  
+  df_fine <- bind_rows(df_fine, dfi)
+}
+
+df_fine$item <- factor(df_fine$item, levels = rev(item_rank))
+levels(df_fine$item) <- rev(scent_rank)
+df_long_Age$item <- factor(df_long_Age$item, levels = rev(item_rank))
+levels(df_long_Age$item) <- rev(scent_rank)
+
+saveRDS(df_fine, "df_fine_O.rds")
+saveRDS(df_long_Age, "df_age_O.rds")
+```
+
+## % correct by age - PROBE
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+Qvec <- quantile(df_P$age) 
+
+df_P <- df_P %>% 
+  mutate(age_cat = case_when(
+    age <= Qvec[2] ~ "bin1",
+    age <= Qvec[3] ~ "bin2",
+    age <= Qvec[4] ~ "bin3",
+    TRUE ~ "bin4"
+  ))
+bin_vec <- c("bin1","bin2","bin3","bin4")
+
+df_long_Age <- data.frame()
+for (i_bin in 1:4) {
+  df_age <- data.frame(group = group_name)
+  for (i in 1:n) {
+    if (i < 10) {
+      col <- paste0("UPSIT.0",i, ".B")
+    } else {
+      col <- paste0("UPSIT.",i, ".B")
+    }
+    
+    dfi <- df_P %>% filter(age_cat == bin_vec[i_bin]) %>% select(group, all_of(col)) 
+    names(dfi)[2] <- "col"
+    
+    dfi <- dfi %>% 
+      group_by(group) %>% 
+      summarise(n = n(),
+                new = sum(col)) %>% 
+      mutate(new2 = round(new/n*100,2))
+    names(dfi)[which(names(dfi) == "new2")] <- itemLab[i]
+    df_age <- left_join(df_age, dfi %>% select(-c(n,new)), by = "group")
+  }
+  
+  df_long_age <- df_age %>% pivot_longer(-group, names_to = "item", values_to = "prop") 
+  df_long_age$group <- factor(df_long_age$group, levels = group_name)
+  
+  df_long_age <- df_long_age %>% 
+    mutate(age = round((Qvec[i_bin]+Qvec[i_bin+1])/2))
+  
+  df_long_Age <- bind_rows(df_long_Age, df_long_age)
+}
+
+Wnbasis <- 2
+Wnorder <- min(Wnbasis, 5)
+Wbasis  <- fda::create.bspline.basis(c(40, 85), Wnbasis, Wnorder) 
+WfdPar  <- fda::fdPar(Wbasis)
+
+nfine <- 101
+agefine <- seq(40,85, length = nfine)
+binctr <- c(50,62,68,77)
+
+df_fine <- data.frame()
+for (i in 1:n) {
+  df_W <- df_long_Age %>% filter(item == item_rank[i]) %>% pivot_wider(names_from = group, values_from = prop)
+  bin <- as.matrix(df_W[,3:4])
+  
+  result  <- fda::smooth.basis(binctr, bin, WfdPar)
+  Wfdi    <- result$fd
+  Wmatfine   <- fda::eval.fd(agefine, Wfdi)
+  
+  dfi <- data.frame(group = c(rep(group_name[1], nfine), rep(group_name[2], nfine)),
+                    age = rep(agefine, 2),
+                    prop = c(Wmatfine[,1], Wmatfine[,2]),
+                    item = rep(item_rank[i], nfine*2))
+  
+  df_fine <- bind_rows(df_fine, dfi)
+}
+
+df_fine$item <- factor(df_fine$item, levels = rev(item_rank))
+levels(df_fine$item) <- rev(scent_rank)
+df_long_Age$item <- factor(df_long_Age$item, levels = rev(item_rank))
+levels(df_long_Age$item) <- rev(scent_rank)
+
+saveRDS(df_fine, "df_fine_P.rds")
+saveRDS(df_long_Age, "df_age_P.rds")
+```
+
+```{r}
+
+```

@@ -1,0 +1,491 @@
+---
+title: "Abbreviated Smell Test - UPSIT"
+author: "Juan Li"
+date: 2024-03-01
+format: pptx
+editor: visual
+---
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+library(dplyr)      # Data manipulation
+library(stringr)    # String manipulation
+library(ggplot2)    # Data visualization
+library(ggpubr)     # Combine multiple ggplot2 panels - ggarrange
+library(pROC)       # ROC, AUC
+library(gtsummary)  # Summary table
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+diagnosis_color <- read.csv("diagnosis colors.csv", header = TRUE)
+group_name <- c("HC", "PD/DLB", "MSA/PSP")
+group.colors <- c("#1F78B4",  "#AF026C")
+
+df_O <- read.csv("Ottawa_cut.csv", header = TRUE)
+df_O$cohort <- "Ottawa Trial"
+
+df_P <- read.csv("PROBE_cut.csv", header = TRUE)
+df_P$cohort <- "PROBE"
+
+df_D <- read.csv("DeNoPa_cut.csv", header = TRUE)
+df_D$cohort <- "DeNoPa"
+
+ranks_SST_ID <- read.csv("SST_ID_rankings.csv", header = T)
+ranks_UPSIT <- read.csv("UPSIT_rankings.csv", header = T)
+```
+
+### Table 3
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+# extract the Average rankings of each smell test
+rankA_SST_ID <- ranks_SST_ID %>% filter(author == "Average")
+rankA_SST_ID$ind <- as.numeric(unlist(str_split(rankA_SST_ID$item, "-"))[seq(1,31, by = 2)])
+rankA_SST_ID$scent <- unlist(str_split(rankA_SST_ID$item, "-"))[seq(2,32, by = 2)]
+rankA_SST_ID$test <- "SST-ID"
+
+rankA_UPSIT <- ranks_UPSIT %>% filter(author == "Average")
+rankA_UPSIT$ind <- as.numeric(unlist(str_split(rankA_UPSIT$item, "-"))[seq(1,79, by = 2)])
+rankA_UPSIT$scent <- unlist(str_split(rankA_UPSIT$item, "-"))[seq(2,80, by = 2)]
+rankA_UPSIT$test <- "UPSIT"
+
+# find all shared scents by the two tests
+(scent_shared <- intersect(rankA_SST_ID$scent, rankA_UPSIT$scent))
+
+# extract the Average rankings of each smell test
+df1 <- rankA_SST_ID %>% filter(scent %in% scent_shared) %>% select(item, scent, ind, rank) %>% 
+  mutate(rank = 17-rank)
+names(df1)[which(names(df1) %in% c("item", "ind", "rank"))] <- c("item_SST_ID", "ind_SST_ID", "rank_SST_ID")
+df2 <- rankA_UPSIT %>% filter(scent %in% scent_shared) %>% select(item, scent, ind, rank) %>% 
+  mutate(rank = 41-rank)
+names(df2)[which(names(df2) %in% c("item", "ind", "rank"))] <- c("item_UPSIT", "ind_UPSIT", "rank_UPSIT")
+df_shared <- df1 %>% left_join(df2,by = "scent")
+df_shared <- df_shared %>% 
+  mutate(rank_ave = (rank_SST_ID/16 + rank_UPSIT/40)/2) %>% 
+  arrange(rank_ave) %>% 
+  mutate(rank = 1:length(scent_shared),
+         rank_SST_ID = paste0(rank_SST_ID,"/16"),
+         rank_UPSIT = paste0(rank_UPSIT, "/40"))
+n <-nrow(df_shared)
+print.data.frame(df_shared[,c("rank", "scent", "rank_SST_ID", "rank_UPSIT", "rank_ave")]) 
+
+write.csv(df_shared, "df_shared.csv", row.names = FALSE)
+```
+
+```{r}
+# subset and combine the three cohorts
+new_name <- paste("Short", 1:n, sep = "_")
+
+ind1 <- which(names(df_O) == "UPSIT.01.B")
+ind2 <- which(names(df_O) == "UPSIT.40.B")
+sub_UPSIT <- names(df_O)[ind1:ind2][df_shared$ind_UPSIT]
+df_O_sub <- df_O[, c("cohort", "ID", "group", "diagnosis", "sex", "age", "UPSIT", "olfaction", sub_UPSIT)]
+names(df_O_sub)[which(names(df_O_sub) %in% sub_UPSIT)] <- new_name
+names(df_O_sub)[which(names(df_O_sub) == "UPSIT")] <- "score_old"
+df_O_sub$EVENT_ID <- "baseline"
+
+df_P_sub <- df_P[, c("cohort", "ID", "group", "diagnosis", "sex", "age", "UPSIT", "olfaction", sub_UPSIT)]
+names(df_P_sub)[which(names(df_P_sub) %in% sub_UPSIT)] <- new_name
+names(df_P_sub)[which(names(df_P_sub) == "UPSIT")] <- "score_old"
+df_P_sub$EVENT_ID <- "baseline"
+
+ind1 <- which(names(df_D) == "SS.ID.01.B")
+ind2 <- which(names(df_D) == "SS.ID.16.B")
+sub_SST_ID <- names(df_D)[ind1:ind2][df_shared$ind_SST_ID]
+df_D_sub <- df_D[, c("cohort", "ID", "EVENT_ID", "group", "diagnosis", "sex", "age", "SST.ID", "olfaction", sub_SST_ID)]
+names(df_D_sub)[which(names(df_D_sub) %in% sub_SST_ID)] <- new_name
+names(df_D_sub)[which(names(df_D_sub) == "SST.ID")] <- "score_old"
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+df_combine <- bind_rows(df_O_sub, df_P_sub, df_D_sub)
+df_combine$score_1 <- df_combine$Short_1
+ind1 <- which(names(df_combine) == "Short_1")
+for (i in 2:n) {
+  ind2 <- which(names(df_combine) == paste("Short", i, sep = "_"))
+  df_combine$new <- rowSums(df_combine[, ind1:ind2])
+  names(df_combine)[which(names(df_combine) == "new")] <- paste("score", i, sep = "_") 
+}
+
+df_combine$group <- factor(df_combine$group, levels = group_name)
+df_combine$diagnosis <- factor(df_combine$diagnosis, levels = intersect(diagnosis_color$diagnosis, unique(df_combine$diagnosis)))
+df_combine$olfaction <- factor(df_combine$olfaction, levels = c("Normal", "Reduced"))
+```
+
+```{r}
+test_vec <- c("score_old", paste("score", 1:n, sep = "_"))
+cohort_vec <- c("Combined", unique(df_combine$cohort))
+group_name <- levels(df_combine$group)
+df <- df_combine %>% filter(EVENT_ID == "baseline", group != "MSA/PSP") %>% droplevels()
+
+res <- data.frame()
+for (i in seq_len(length(test_vec))) {
+  df_0 <- df %>% select(cohort, group, all_of(test_vec[i]))
+  names(df_0)[ncol(df_0)] <- "value"
+  
+  for (i_cohort in seq_len(length(cohort_vec))) {
+    cohort_i <- cohort_vec[i_cohort]
+    
+    if (cohort_i == "Combined") {
+      if (i == 1) next
+      else df_i <- df_0
+    } else {
+      df_i <- df_0 %>% filter(cohort == cohort_i) %>% droplevels()
+    }
+    
+    if (i == 1 & cohort_i == "DeNoPa") {
+      n_i <- 16
+    } else if (i == 1 & cohort_i != "DeNoPa") {
+      n_i <- 40
+    } else {
+      n_i <- i - 1
+    }
+    
+    roc_1 <- roc(df_i$group, df_i$value, levels=c("HC", "PD/DLB"), na.rm=TRUE, ci=TRUE) 
+    temp <- (roc_1$sensitivities + roc_1$specificities)/2
+    ind <- which(temp == max(temp, na.rm = T))[1]
+    
+    res <- bind_rows(res,
+                     data.frame(test = test_vec[i],
+                                n_scent = n_i,
+                                cohort = cohort_i, 
+                                auc = roc_1$ci[2],
+                                ci_l = roc_1$ci[1],
+                                ci_u = roc_1$ci[3],
+                                threshold = roc_1$thresholds[ind],
+                                sensitivity = roc_1$sensitivities[ind],
+                                specificity = roc_1$specificities[ind],
+                                `C-stat` = temp[ind]))
+  }
+}
+```
+
+### Table 4
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+df_combine$score <- df_combine$score_7
+
+df_bl <- df_combine %>% filter(EVENT_ID == "baseline") %>% droplevels()
+roc_1 <- roc(df_bl$group, df_bl$score, levels=c(group_name[c(1, 2)]), na.rm=TRUE, ci=TRUE) 
+print("PD/DLB vs HC in the combined cohort")
+print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
+temp <- (roc_1$sensitivities + roc_1$specificities)
+ind <- which(temp == max(temp, na.rm = T))[1]
+print(paste0(group_name[2], " vs ", group_name[1], ": cut = ", round(roc_1$thresholds[ind],2), 
+             "; sensitivity = ", round(roc_1$sensitivities[ind],2),
+             "; specificity = ", round(roc_1$specificities[ind],2)))
+
+roc_1 <- roc(df_bl$group, df_bl$score, levels=c(group_name[c(3, 2)]), na.rm=TRUE, ci=TRUE) 
+print("PD/DLB vs MSA/PSP in the combined cohort")
+print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
+temp <- (roc_1$sensitivities + roc_1$specificities)
+ind <- which(temp == max(temp, na.rm = T))[1]
+print(paste0(group_name[2], " vs ", group_name[3], ": cut = ", round(roc_1$thresholds[ind],2), 
+             "; sensitivity = ", round(roc_1$sensitivities[ind],2),
+             "; specificity = ", round(roc_1$specificities[ind],2)))
+
+print("DeNoPa")
+df <- df_bl %>% filter(cohort == "DeNoPa") %>% droplevels()
+roc_1 <- roc(df$group, df$score, levels=c(group_name[c(1, 2)]), na.rm=TRUE, ci=TRUE) 
+print("PD/DLB vs HC in DeNoPa")
+print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
+temp <- (roc_1$sensitivities + roc_1$specificities)
+ind <- which(temp == max(temp, na.rm = T))[1]
+print(paste0(group_name[2], " vs ", group_name[1], ": cut = ", round(roc_1$thresholds[ind],2), 
+             "; sensitivity = ", round(roc_1$sensitivities[ind],2),
+             "; specificity = ", round(roc_1$specificities[ind],2)))
+
+roc_1 <- roc(df$group, df$score, levels=c(group_name[c(3, 2)]), na.rm=TRUE, ci=TRUE) 
+print("PD/DLB vs MSA/PSP in DeNoPa")
+print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
+temp <- (roc_1$sensitivities + roc_1$specificities)
+ind <- which(temp == max(temp, na.rm = T))[1]
+print(paste0(group_name[2], " vs ", group_name[3], ": cut = ", round(roc_1$thresholds[ind],2), 
+             "; sensitivity = ", round(roc_1$sensitivities[ind],2),
+             "; specificity = ", round(roc_1$specificities[ind],2)))
+
+print("Ottawa Trial")
+df <- df_bl %>% filter(cohort == "Ottawa Trial") %>% droplevels()
+roc_1 <- roc(df$group, df$score, levels=c(group_name[c(1, 2)]), na.rm=TRUE, ci=TRUE) 
+print("PD/DLB vs HC in Ottawa trial")
+print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
+temp <- (roc_1$sensitivities + roc_1$specificities)
+ind <- which(temp == max(temp, na.rm = T))[1]
+print(paste0(group_name[2], " vs ", group_name[1], ": cut = ", round(roc_1$thresholds[ind],2), 
+             "; sensitivity = ", round(roc_1$sensitivities[ind],2),
+             "; specificity = ", round(roc_1$specificities[ind],2)))
+print(paste0(group_name[2], " vs ", group_name[1], ": cut = 4.5", 
+             "; sensitivity = ", round(roc_1$sensitivities[roc_1$thresholds == 4.5],2),
+             "; specificity = ", round(roc_1$specificities[roc_1$thresholds == 4.5],2)))
+
+roc_1 <- roc(df$group, df$score, levels=c(group_name[c(3, 2)]), na.rm=TRUE, ci=TRUE) 
+print("PD/DLB vs MSA/PSP in Ottawa trial")
+print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
+temp <- (roc_1$sensitivities + roc_1$specificities)
+ind <- which(temp == max(temp, na.rm = T))[1]
+print(paste0(group_name[2], " vs ", group_name[3], ": cut = ", round(roc_1$thresholds[ind],2), 
+             "; sensitivity = ", round(roc_1$sensitivities[ind],2),
+             "; specificity = ", round(roc_1$specificities[ind],2)))
+
+print("PROBE")
+df <- df_bl %>% filter(cohort == "PROBE") %>% droplevels()
+roc_1 <- roc(df$group, df$score, levels=c(group_name[c(1, 2)]), na.rm=TRUE, ci=TRUE) 
+print("PD/DLB vs HC in PROBE")
+print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
+temp <- (roc_1$sensitivities + roc_1$specificities)
+ind <- which(temp == max(temp, na.rm = T))[1]
+print(paste0(group_name[2], " vs ", group_name[1], ": cut = ", round(roc_1$thresholds[ind],2), 
+             "; sensitivity = ", round(roc_1$sensitivities[ind],2),
+             "; specificity = ", round(roc_1$specificities[ind],2)))
+
+roc_1 <- roc(df$group, df$score, levels=c(group_name[c(3, 2)]), na.rm=TRUE, ci=TRUE) 
+print("PD/DLB vs MSA/PSP in PROBE")
+print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
+temp <- (roc_1$sensitivities + roc_1$specificities)
+ind <- which(temp == max(temp, na.rm = T))[1]
+print(paste0(group_name[2], " vs ", group_name[3], ": cut = ", round(roc_1$thresholds[ind],2), 
+             "; sensitivity = ", round(roc_1$sensitivities[ind],2),
+             "; specificity = ", round(roc_1$specificities[ind],2)))
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+# DeNoPa
+df_D_tbl1 <- df_bl %>% 
+  filter(cohort == "DeNoPa") %>% 
+  droplevels() %>% 
+  select(group, 
+         sex, age, score_old, score, olfaction) 
+names(df_D_tbl1)[c(2:ncol(df_D_tbl1))] <- c("Sex", "Age", 
+                                            "SST.ID", "7 scents", "Olfaction")
+
+df_D_tbl1 %>% 
+  tbl_summary(by = group,
+              missing = "no",
+              type = list("7 scents" ~ "continuous"),
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) %>% 
+  add_p() %>% 
+  add_q() %>% 
+  modify_header(label = "**Variable**") %>% # update the column header
+  modify_caption("Table 1. Patient Characteristics in DeNoPa") %>%
+  bold_labels() %>% 
+  as_flex_table()
+
+# Ottawa
+df_O_tbl1 <- df_bl %>% 
+  filter(cohort == "Ottawa Trial") %>% 
+  droplevels() %>% 
+  select(group, 
+         sex, age, score_old, score, olfaction) 
+names(df_O_tbl1)[c(2:ncol(df_O_tbl1))] <- c("Sex", "Age", 
+                                            "UPSIT", "7 scents", "Olfaction")
+
+df_O_tbl1 %>% 
+  tbl_summary(by = group,
+              missing = "no",
+              type = list("7 scents" ~ "continuous"),
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) %>% 
+  add_p() %>% 
+  add_q() %>% 
+  modify_header(label = "**Variable**") %>% # update the column header
+  modify_caption("Table 1. Patient Characteristics in Ottawa trial") %>%
+  bold_labels() %>% 
+  as_flex_table()
+
+# PROBE
+df_P_tbl1 <- df_bl %>% 
+  filter(cohort == "PROBE") %>% 
+  droplevels() %>% 
+  select(group, 
+         sex, age, score_old, score, olfaction) 
+names(df_P_tbl1)[c(2:ncol(df_P_tbl1))] <- c("Sex", "Age", 
+                                            "UPSIT", "7 scents", "Olfaction")
+
+df_P_tbl1 %>% 
+  tbl_summary(by = group,
+              missing = "no",
+              type = list("7 scents" ~ "continuous"),
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) %>% 
+  add_p() %>% 
+  add_q() %>% 
+  modify_header(label = "**Variable**") %>% # update the column header
+  modify_caption("Table 1. Patient Characteristics in PROBE") %>%
+  bold_labels() %>% 
+  as_flex_table()
+
+# combined
+df_P_tbl1 <- df_bl %>% 
+  select(group, 
+         sex, age, score_old, score, olfaction) 
+names(df_P_tbl1)[c(2:ncol(df_P_tbl1))] <- c("Sex", "Age", 
+                                            "UPSIT", "7 scents", "Olfaction")
+
+df_P_tbl1 %>% 
+  tbl_summary(by = group,
+              missing = "no",
+              type = list("7 scents" ~ "continuous"),
+              statistic = list(all_continuous() ~ "{mean} ({sd})")) %>% 
+  add_p() %>% 
+  add_q() %>% 
+  modify_header(label = "**Variable**") %>% # update the column header
+  modify_caption("Table 1. Patient Characteristics in the combined cohort") %>%
+  bold_labels() %>% 
+  as_flex_table()
+```
+
+## sex
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+df_sex_D <- readRDS("df_sex_D.rds") %>% mutate(cohort = "DeNoPa") %>% 
+  filter(item %in% df_shared$scent) 
+df_F_D <- readRDS("df_sex_D_F.rds") %>% mutate(cohort = "DeNoPa") %>% 
+  filter(item %in% df_shared$scent) 
+df_M_D <- readRDS("df_sex_D_M.rds") %>% mutate(cohort = "DeNoPa") %>% 
+  filter(item %in% df_shared$scent) 
+df_sex_O <- readRDS("df_sex_O.rds") %>% mutate(cohort = "Ottawa Trial") %>% 
+  filter(item %in% df_shared$scent) 
+df_F_O <- readRDS("df_sex_O_F.rds") %>% mutate(cohort = "Ottawa Trial") %>% 
+  filter(item %in% df_shared$scent) 
+df_M_O <- readRDS("df_sex_O_M.rds") %>% mutate(cohort = "Ottawa Trial") %>% 
+  filter(item %in% df_shared$scent) 
+df_sex_P <- readRDS("df_sex_P.rds") %>% mutate(cohort = "PROBE") %>% 
+  filter(item %in% df_shared$scent) 
+df_F_P <- readRDS("df_sex_P_F.rds") %>% mutate(cohort = "PROBE") %>% 
+  filter(item %in% df_shared$scent) 
+df_M_P <- readRDS("df_sex_P_M.rds") %>% mutate(cohort = "PROBE") %>% 
+  filter(item %in% df_shared$scent) 
+
+dfPlt <- bind_rows(df_sex_D, df_sex_O, df_sex_P)
+dfPlt$item <- factor(dfPlt$item, levels = rev(df_shared$scent))
+dfPlt$cohort <- factor(dfPlt$cohort, levels = c("DeNoPa", "Ottawa Trial", "PROBE"))
+df_long_F <- bind_rows(df_F_D, df_F_O, df_F_P)
+df_long_F$item <- factor(df_long_F$item, levels = rev(df_shared$scent))
+df_long_F$cohort <- factor(df_long_F$cohort, levels = c("DeNoPa", "Ottawa Trial", "PROBE"))
+df_long_M <- bind_rows(df_M_D, df_M_O, df_M_P)
+df_long_M$item <- factor(df_long_M$item, levels = rev(df_shared$scent))
+df_long_M$cohort <- factor(df_long_M$cohort, levels = c("DeNoPa", "Ottawa Trial", "PROBE"))
+
+p <- ggplot(dfPlt, aes(item, diff, fill = sex))+
+  geom_col(position = "identity", width = 0.5) +
+  labs(y = paste0("% ", group_name[1], " - % ", group_name[2]), title = "")+
+  coord_flip()+
+  scale_fill_manual(values = c("#409151", "#EA983F"))+
+  scale_y_continuous(limits = c(-70,70), breaks = c(-50, -25, 0, 25, 50), labels = c(50, 25, 0, 25, 50))+
+  facet_wrap(~cohort) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        axis.title.y = element_blank(),
+        text = element_text(size=11),
+        legend.position = "right")
+```
+
+### Figure 7 (a)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 12
+#| fig-height: 4
+
+df_long <- bind_rows(df_long_F %>% mutate(sex = "Female"),
+                     df_long_M %>% mutate(sex = "Male")) 
+
+ggplot(df_long %>% filter(group %in% group_name[c(1,2)]), aes(item, prop2, fill = sex))+
+  geom_col(position = "dodge", width = 0.5, alpha = 0.8) +
+  scale_fill_manual(values = c("#409151", "#EA983F"))+
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  #scale_fill_manual(values = c(group.colors))+
+  annotate("rect", ymin = -Inf, ymax = 0, 
+           xmin = -Inf, xmax = Inf, alpha = .1, fill = group.colors[1])+
+  annotate("rect", ymin = 0, ymax = Inf, 
+           xmin = -Inf, xmax = Inf, alpha = .1, fill = group.colors[2])+
+  scale_y_continuous(limits = c(-100,100), breaks = c(-100, -50, 0, 50, 100), labels = c(100, 50, 0, 50, 100))+
+  labs(y = "% of correct scent identification")+
+  coord_flip()+
+  #facet_grid(cols = vars(cohort), rows = vars(group)) +
+  facet_wrap(~cohort)+
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        axis.title.y = element_blank(),
+        text = element_text(size=11),
+        legend.position = "top")
+```
+
+## Age, Figure 7 (b)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 11
+#| fig-height: 4
+
+df_fine_D <- readRDS("df_fine_D.rds") %>% filter() %>% mutate(cohort = "DeNoPa") %>% 
+  filter(item %in% df_shared$scent) 
+df_age_D <- readRDS("df_age_D.rds") %>% mutate(cohort = "DeNoPa") %>% 
+  filter(item %in% df_shared$scent) 
+df_fine_O <- readRDS("df_fine_O.rds") %>% filter() %>% mutate(cohort = "Ottawa Trial") %>% 
+  filter(item %in% df_shared$scent)
+df_age_O <- readRDS("df_age_O.rds") %>% mutate(cohort = "Ottawa Trial") %>% 
+  filter(item %in% df_shared$scent)
+df_fine_P <- readRDS("df_fine_P.rds") %>% filter() %>% mutate(cohort = "PROBE") %>% 
+  filter(item %in% df_shared$scent)
+df_age_P <- readRDS("df_age_P.rds") %>% mutate(cohort = "PROBE") %>% 
+  filter(item %in% df_shared$scent)
+
+df_fine <- bind_rows(df_fine_O, df_fine_P, df_fine_D)
+df_fine$item <- factor(df_fine$item, levels = df_shared$scent)
+df_fine$cohort <- factor(df_fine$cohort, levels = c("DeNoPa", "Ottawa Trial", "PROBE"))
+
+df_long_Age <- bind_rows(df_age_O, df_age_P, df_age_D) %>% filter(group!= "MSA/PSP") %>% droplevels()
+df_long_Age$item <- factor(df_long_Age$item, levels = df_shared$scent)
+df_long_Age$cohort <- factor(df_long_Age$cohort, levels = c("DeNoPa", "Ottawa Trial", "PROBE"))
+
+ggplot(df_fine, aes(age, prop, color=group))+
+  geom_line()+
+  geom_point(data = df_long_Age, aes(age, prop, color=group))+
+  scale_color_manual(values = group.colors)+
+  xlim(40,85)+
+  facet_grid(rows = vars(cohort), cols = vars(item))+ #, switch = "y
+  labs(x = "Age (years)",
+       y = "% of correct scent identification")+
+  theme_bw()+
+  theme(text = element_text(size=12),
+        legend.title = element_blank(),
+        legend.position = "top")
+
+
+```
+
+```{r}
+
+```
