@@ -87,6 +87,8 @@ Included in this repo:
       - `DeNoPa_cut.csv`
       - `SST_ID_rankings.csv`
       - `UPSIT_rankings.csv`
+   3. Generate files
+      - `scent_shared.csv`: 11 scents that are shared by SST-ID and UPSIT.
 
 ## Supportive function
 
