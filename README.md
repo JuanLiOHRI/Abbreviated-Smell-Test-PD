@@ -27,8 +27,8 @@ Included in this repo:
 ## Code files
 
 1. `1. Tables, distributions, ROCs.qmd`
-2. ``
-3. ``
+2. `2. Abbreviated Smell Test SST-ID.qmd`
+3. `3. Abbreviated Smell Test UPSIT.qmd`
 4. `4. Combine UPSIT and SST-ID.qmd`
 
 There are three supporting functions, see `Abbreviated Smell Test DeNoPa.qmd` for more details.
