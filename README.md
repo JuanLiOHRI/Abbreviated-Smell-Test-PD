@@ -39,8 +39,43 @@ Included in this repo:
       - `PROBE_cut.csv`
       - `DeNoPa_cut.csv`
 2. `2. Abbreviated Smell Test SST-ID.qmd`
+   1. Code for
+      - Figure 3 (a,b): rankings of SST-ID scents, percentages of correct scent identification in each group
+      - Supplemental Figure 2 (a): Percentage differences of correct scent identification between HC and PD/DLB groups (% HC - % PD/DLB) in DeNoPa (SST-ID)
+      - Figure 4 (a): comparing SST-ID rankings of this study with 4 previously published ones
+      - Figure 6 (a)-(c): validation of the SST-ID subsets
+      - Figure 5, Supplemental Figure 3, Supplemental Figure 4: ICCs of SST-ID scents
+   2. Need to read
+      - `DeNoPa_cut.csv`
+      - `Published rankings.csv`
+      - `scent_shared.csv`
+      - `SST_ID_option.csv`
+   3. Generated files
+      - `df_sex_D_M.rds`, `df_sex_D_F.rds`, `df_sex_D.rds`: relationship beteen scent identification and sex of SST-ID
+      - `df_fine_D.rds`, `df_age_D.rds`: relationship beteen scent identification and age of SST-ID
 3. `3. Abbreviated Smell Test UPSIT.qmd`
+   1. Code for
+      - Table 1: demographic and diagnostic characteristics of the 3 cohorts
+      - Table 2: AUC, sensitivity and specificity of SST-ID and UPSIT
+      - Supplemental Table 2: relationship between SST-ID/UPSIT scores with age, sex, and diagnostic groups
+      - Figure 2: distribution and AUC values of SST-ID and UPSIT
+      - Supplemental Figure 1: distribution and AUC values of SST-TH and SST-DS
+   2. Need to read
+      - `diagnosis colors.csv`
+      - `Ottawa_cut.csv`
+      - `PROBE_cut.csv`
 4. `4. Combine UPSIT and SST-ID.qmd`
+   1. Code for
+      - Table 1: demographic and diagnostic characteristics of the 3 cohorts
+      - Table 2: AUC, sensitivity and specificity of SST-ID and UPSIT
+      - Supplemental Table 2: relationship between SST-ID/UPSIT scores with age, sex, and diagnostic groups
+      - Figure 2: distribution and AUC values of SST-ID and UPSIT
+      - Supplemental Figure 1: distribution and AUC values of SST-TH and SST-DS
+   2. Need to read
+      - `diagnosis colors.csv`
+      - `Ottawa_cut.csv`
+      - `PROBE_cut.csv`
+      - `DeNoPa_cut.csv`
 
 ## Supportive function
 
