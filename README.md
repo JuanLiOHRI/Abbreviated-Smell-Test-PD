@@ -31,9 +31,8 @@ Included in this repo:
 3. `3. Abbreviated Smell Test UPSIT.qmd`
 4. `4. Combine UPSIT and SST-ID.qmd`
 
-There are three supporting functions, see `Abbreviated Smell Test DeNoPa.qmd` for more details.
+## Supporing function
 
-- `itemAUC.R`: calculate each scent's AUC values and rank them, using cross-validation
-- `boruta.ranking.R`: rank each scent by their variable importance values using the Boruta algorithm.
-- `subsetAUC.R`: calculate each subset's AUC values.
+1. `itemAUC.R`: calculate each scent's AUC values and rank them, using cross-validation
+2. `subsetAUC.R`: calculate each subset's AUC values.
 
