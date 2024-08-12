@@ -33,11 +33,11 @@ Included in this repo:
       - Supplemental Table 2:
       - Figure 2:
       - Supplemental Figure 1:
-  2. Need to read
-     - `diagnosis colors.csv`
-     - `Ottawa_cut.csv`
-     - `PROBE_cut.csv`
-     - `DeNoPa_cut.csv`
+   2. Need to read
+      - `diagnosis colors.csv`
+      - `Ottawa_cut.csv`
+      - `PROBE_cut.csv`
+      - `DeNoPa_cut.csv`
 2. `2. Abbreviated Smell Test SST-ID.qmd`
 3. `3. Abbreviated Smell Test UPSIT.qmd`
 4. `4. Combine UPSIT and SST-ID.qmd`
