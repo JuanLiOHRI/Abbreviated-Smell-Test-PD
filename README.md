@@ -51,15 +51,16 @@ Included in this repo:
       - `scent_shared.csv`
       - `SST_ID_option.csv`
    3. Generate files
-      - `df_sex_D_M.rds`, `df_sex_D_F.rds`, `df_sex_D.rds`: relationship beteen scent identification and sex of SST-ID in DeNoPa
-      - `df_fine_D.rds`, `df_age_D.rds`: relationship beteen scent identification and age of SST-ID in DeNoPa
+      - `SST_ID_rankings.csv`: rankings of SST-ID scents
+      - `df_sex_D_M.rds`, `df_sex_D_F.rds`, `df_sex_D.rds`: relationship between scent identification and sex of SST-ID in DeNoPa
+      - `df_fine_D.rds`, `df_age_D.rds`: relationship between scent identification and age of SST-ID in DeNoPa
 3. `3. Abbreviated Smell Test UPSIT.qmd`
    1. Code for
       - Figure 3 (c,d): rankings of UPSIT scents, percentages of correct scent identification in each group
       - Supplemental Figure 2 (b): Percentage differences of correct scent identification between HC and PD/DLB groups (% HC - % PD/DLB) in Ottawa Trial (UPSIT)
       - Figure 4 (b): comparing UPSIT rankings of this study with 4 previously published ones
       - Figure 6 (d,e): validation of the UPSIT subsets
-      - Figure 5, Supplemental Figure 3, Supplemental Figure 4: ICCs of UPSIT scents
+      - Figure 5, Supplemental Figure 3, Supplemental Figure 5: ICCs of UPSIT scents
    2. Need to read
       - `diagnosis colors.csv`
       - `Ottawa_cut.csv`
@@ -69,22 +70,23 @@ Included in this repo:
       - `UPSIT_key.csv`
       - `UPSIT_option.csv`
    3. Generate files
-      - `df_sex_O_M.rds`, `df_sex_O_F.rds`, `df_sex_O.rds`: relationship beteen scent identification and sex of UPSIT in Ottawa trial
-      - `df_fine_O.rds`, `df_age_O.rds`: relationship beteen scent identification and age of UPSIT in Ottawa trial
-      - `df_sex_P_M.rds`, `df_sex_P_F.rds`, `df_sex_P.rds`: relationship beteen scent identification and sex of UPSIT in PROBE
-      - `df_fine_P.rds`, `df_age_P.rds`: relationship beteen scent identification and age of UPSIT in PROBE
+      - `UPSIT_rankings.csv`: rankings of UPSIT scents
+      - `df_sex_O_M.rds`, `df_sex_O_F.rds`, `df_sex_O.rds`: relationship between scent identification and sex of UPSIT in Ottawa trial
+      - `df_fine_O.rds`, `df_age_O.rds`: relationship between scent identification and age of UPSIT in Ottawa trial
+      - `df_sex_P_M.rds`, `df_sex_P_F.rds`, `df_sex_P.rds`: relationship between scent identification and sex of UPSIT in PROBE
+      - `df_fine_P.rds`, `df_age_P.rds`: relationship between scent identification and age of UPSIT in PROBE
 4. `4. Combine UPSIT and SST-ID.qmd`
    1. Code for
-      - Table 1: demographic and diagnostic characteristics of the 3 cohorts
-      - Table 2: AUC, sensitivity and specificity of SST-ID and UPSIT
-      - Supplemental Table 2: relationship between SST-ID/UPSIT scores with age, sex, and diagnostic groups
-      - Figure 2: distribution and AUC values of SST-ID and UPSIT
-      - Supplemental Figure 1: distribution and AUC values of SST-TH and SST-DS
+      - Table 3: rankings of the 11 scents shared by SST-ID and UPSIT
+      - Table 4: performance of the 7-scent abbreviated smell test
+      - Figure 7: relationship of scent identification with sex and age
    2. Need to read
       - `diagnosis colors.csv`
       - `Ottawa_cut.csv`
       - `PROBE_cut.csv`
       - `DeNoPa_cut.csv`
+      - `SST_ID_rankings.csv`
+      - `UPSIT_rankings.csv`
 
 ## Supportive function
 
