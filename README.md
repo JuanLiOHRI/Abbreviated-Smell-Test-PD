@@ -1,11 +1,17 @@
 # Abbreviated Smell Test to Identify Patients with PD/DLB
 
 Code for analysis in the manuscript entitled "Development of a Simplified Smell Test to Identify Patients with Typical Parkinson’s as Informed by Multiple Cohorts, Machine Learning and External Validation". 
+
 medRxiv preprint doi: https://doi.org/10.1101/2024.08.09.24311696
 
-## `Data preparation.DeNoPa.Rmd`
+## Data files
 
-Code for cut and prepare data for the study. For accessting raw data, please contact the corresponding authors. The cut data (and data dictionary) can be accessed via zenodo (link to be updated) upon request.
+Datasets of the three cohorts used in this study can be accessed via zenodo (link to be updated) upon request.
+
+1. `Data dictionary.xlsx`
+2. Ottawa (PREDIGT) Trial (baseline): `Ottawa_cut.csv`
+3. Prognostic Biomarkers in Parkinson’s Disease Study (PROBE; baseline): `PROBE_cut.csv`
+4. “_De Novo_ Parkinson disease study” (DeNoPa; baseline, 48-month, and 72-month follow-up visits): `DeNoPa_cut.csv`
 
 ## `Abbreviated Smell Test DeNoPa.qmd`
 
