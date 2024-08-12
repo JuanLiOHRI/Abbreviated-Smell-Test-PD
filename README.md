@@ -1,4 +1,4 @@
-# Abbreviated SST-ID
+# Abbreviated Smell Test to Identify Patients with PD/DLB
 
 Code for analysis in the manuscript entitled "Simplified Olfaction Testing to Identify Patients with Parkinson’s Using Longitudinal Cohort Study, Machine Learning and External Validation". Links of preprint and the published version to be updated.
 
