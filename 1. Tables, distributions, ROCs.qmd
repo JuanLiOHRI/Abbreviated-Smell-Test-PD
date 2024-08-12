@@ -27,7 +27,7 @@ library(gtsummary)  # Summary table
 #| message: false
 #| output: false
 
-diagnosis_color <- read.csv("diagnosis colors.csv", header = TRUE)
+diagnosis_color <- read.csv("Supportive data/diagnosis colors.csv", header = TRUE)
 
 # DeNoPa - baseline
 df_D <- read.csv("DeNoPa_cut.csv", header = TRUE)
