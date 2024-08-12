@@ -31,8 +31,11 @@ Included in this repo:
 3. `3. Abbreviated Smell Test UPSIT.qmd`
 4. `4. Combine UPSIT and SST-ID.qmd`
 
-## Supporing function
+## Supporting function
+
+Supporting functions are placed in the `R` folder. These functions need to be sourced in `2. Abbreviated Smell Test SST-ID.qmd` and `4. Combine UPSIT and SST-ID.qmd`.
 
 1. `itemAUC.R`: calculate each scent's AUC values and rank them, using cross-validation
 2. `subsetAUC.R`: calculate each subset's AUC values.
+3. Modified `TestGardener` functions to generate ICCs: `make.dataList.R`, `Wbinsmth.R`, `eval_surp.R`, `ICC.plot.R`
 
