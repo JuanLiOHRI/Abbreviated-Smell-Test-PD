@@ -26,7 +26,7 @@ library(gtsummary)  # Summary table
 #| message: false
 #| output: false
 
-diagnosis_color <- read.csv("diagnosis colors.csv", header = TRUE)
+diagnosis_color <- read.csv("Supportive data/diagnosis colors.csv", header = TRUE)
 group_name <- c("HC", "PD/DLB", "MSA/PSP")
 group.colors <- c("#1F78B4",  "#AF026C")
 
@@ -39,8 +39,8 @@ df_P$cohort <- "PROBE"
 df_D <- read.csv("DeNoPa_cut.csv", header = TRUE)
 df_D$cohort <- "DeNoPa"
 
-ranks_SST_ID <- read.csv("SST_ID_rankings.csv", header = T)
-ranks_UPSIT <- read.csv("UPSIT_rankings.csv", header = T)
+ranks_SST_ID <- read.csv("Generated files/SST_ID_rankings.csv", header = T)
+ranks_UPSIT <- read.csv("Generated files/UPSIT_rankings.csv", header = T)
 ```
 
 ### Table 3
@@ -364,23 +364,23 @@ df_P_tbl1 %>%
 #| warning: false
 #| message: false
 
-df_sex_D <- readRDS("df_sex_D.rds") %>% mutate(cohort = "DeNoPa") %>% 
+df_sex_D <- readRDS("Generated files/df_sex_D.rds") %>% mutate(cohort = "DeNoPa") %>% 
   filter(item %in% df_shared$scent) 
-df_F_D <- readRDS("df_sex_D_F.rds") %>% mutate(cohort = "DeNoPa") %>% 
+df_F_D <- readRDS("Generated files/df_sex_D_F.rds") %>% mutate(cohort = "DeNoPa") %>% 
   filter(item %in% df_shared$scent) 
-df_M_D <- readRDS("df_sex_D_M.rds") %>% mutate(cohort = "DeNoPa") %>% 
+df_M_D <- readRDS("Generated files/df_sex_D_M.rds") %>% mutate(cohort = "DeNoPa") %>% 
   filter(item %in% df_shared$scent) 
-df_sex_O <- readRDS("df_sex_O.rds") %>% mutate(cohort = "Ottawa Trial") %>% 
+df_sex_O <- readRDS("Generated files/df_sex_O.rds") %>% mutate(cohort = "Ottawa Trial") %>% 
   filter(item %in% df_shared$scent) 
-df_F_O <- readRDS("df_sex_O_F.rds") %>% mutate(cohort = "Ottawa Trial") %>% 
+df_F_O <- readRDS("Generated files/df_sex_O_F.rds") %>% mutate(cohort = "Ottawa Trial") %>% 
   filter(item %in% df_shared$scent) 
-df_M_O <- readRDS("df_sex_O_M.rds") %>% mutate(cohort = "Ottawa Trial") %>% 
+df_M_O <- readRDS("Generated files/df_sex_O_M.rds") %>% mutate(cohort = "Ottawa Trial") %>% 
   filter(item %in% df_shared$scent) 
-df_sex_P <- readRDS("df_sex_P.rds") %>% mutate(cohort = "PROBE") %>% 
+df_sex_P <- readRDS("Generated files/df_sex_P.rds") %>% mutate(cohort = "PROBE") %>% 
   filter(item %in% df_shared$scent) 
-df_F_P <- readRDS("df_sex_P_F.rds") %>% mutate(cohort = "PROBE") %>% 
+df_F_P <- readRDS("Generated files/df_sex_P_F.rds") %>% mutate(cohort = "PROBE") %>% 
   filter(item %in% df_shared$scent) 
-df_M_P <- readRDS("df_sex_P_M.rds") %>% mutate(cohort = "PROBE") %>% 
+df_M_P <- readRDS("Generated files/df_sex_P_M.rds") %>% mutate(cohort = "PROBE") %>% 
   filter(item %in% df_shared$scent) 
 
 dfPlt <- bind_rows(df_sex_D, df_sex_O, df_sex_P)
@@ -449,17 +449,17 @@ ggplot(df_long %>% filter(group %in% group_name[c(1,2)]), aes(item, prop2, fill 
 #| fig-width: 11
 #| fig-height: 4
 
-df_fine_D <- readRDS("df_fine_D.rds") %>% filter() %>% mutate(cohort = "DeNoPa") %>% 
+df_fine_D <- readRDS("Generated files/df_fine_D.rds") %>% filter() %>% mutate(cohort = "DeNoPa") %>% 
   filter(item %in% df_shared$scent) 
-df_age_D <- readRDS("df_age_D.rds") %>% mutate(cohort = "DeNoPa") %>% 
+df_age_D <- readRDS("Generated files/df_age_D.rds") %>% mutate(cohort = "DeNoPa") %>% 
   filter(item %in% df_shared$scent) 
-df_fine_O <- readRDS("df_fine_O.rds") %>% filter() %>% mutate(cohort = "Ottawa Trial") %>% 
+df_fine_O <- readRDS("Generated files/df_fine_O.rds") %>% filter() %>% mutate(cohort = "Ottawa Trial") %>% 
   filter(item %in% df_shared$scent)
-df_age_O <- readRDS("df_age_O.rds") %>% mutate(cohort = "Ottawa Trial") %>% 
+df_age_O <- readRDS("Generated files/df_age_O.rds") %>% mutate(cohort = "Ottawa Trial") %>% 
   filter(item %in% df_shared$scent)
-df_fine_P <- readRDS("df_fine_P.rds") %>% filter() %>% mutate(cohort = "PROBE") %>% 
+df_fine_P <- readRDS("Generated files/df_fine_P.rds") %>% filter() %>% mutate(cohort = "PROBE") %>% 
   filter(item %in% df_shared$scent)
-df_age_P <- readRDS("df_age_P.rds") %>% mutate(cohort = "PROBE") %>% 
+df_age_P <- readRDS("Generated files/df_age_P.rds") %>% mutate(cohort = "PROBE") %>% 
   filter(item %in% df_shared$scent)
 
 df_fine <- bind_rows(df_fine_O, df_fine_P, df_fine_D)

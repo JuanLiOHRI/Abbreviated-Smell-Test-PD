@@ -30,7 +30,7 @@ source("R/subsetAUC.R", echo=TRUE) # Subset AUC values - with cross validation
 #| output: false
 
 df_O <- read.csv("Ottawa_cut.csv", header = TRUE)
-diagnosis_color <- read.csv("diagnosis colors.csv", header = TRUE)
+diagnosis_color <- read.csv("Supportive data/diagnosis colors.csv", header = TRUE)
 group_name <- c("HC", "PD/DLB", "MSA/PSP")
 df_O$group <- factor(df_O$group, levels = group_name)
 df_O$diagnosis <- factor(df_O$diagnosis, levels = intersect(diagnosis_color$diagnosis, unique(df_O$diagnosis)))
@@ -65,7 +65,7 @@ Rank the UPSIT questions using Ottawa trial data, with 10-fold cross validation 
 n <- 40
 
 # key
-key   <- unlist(unname(read.csv("UPSIT_key.csv", header = FALSE)))
+key   <- unlist(unname(read.csv("Supportive data/UPSIT_key.csv", header = FALSE)))
 
 # noption
 noption <- rep(5,n) # including an extra option for missing/spoiled responses
@@ -79,7 +79,7 @@ for (item in 1:n){
 }
 
 # Item labels
-optlab  <- unname(read.csv("UPSIT_option.csv", header = FALSE))
+optlab  <- unname(read.csv("Supportive data/UPSIT_option.csv", header = FALSE))
 optionLab <- list()
 for (i in 1:n)
 {
@@ -261,7 +261,7 @@ print(p2)
 #| message: false
 #| output: false
 
-rankings <- read.csv("Published rankings.csv", header = TRUE)
+rankings <- read.csv("Supportive data/Published rankings.csv", header = TRUE)
 
 # This study
 type_vec_Li <- c()
@@ -400,7 +400,7 @@ ggplot(rank_comp,
   labs(y = "Rank")
 
 # Save the rankings
-write.csv(rank_comp, "UPSIT_rankings.csv", row.names = FALSE)
+write.csv(rank_comp, "Generated files/UPSIT_rankings.csv", row.names = FALSE)
 ```
 
 ## Subset AUC
@@ -421,7 +421,7 @@ for (i in 1:n) {
 }
 
 # add the shared ones
-df_shared <- read.csv("scent_shared.csv", header = TRUE)
+df_shared <- read.csv("Supportive data/scent_shared.csv", header = TRUE)
 type_vec_Shared <- c()
 indList_Shared<- list()
 vec_Shared <- as.numeric(df_shared$ind_UPSIT)
@@ -848,7 +848,7 @@ df_long_M$group <- factor(df_long_M$group, levels = group_name)
 df_long_M$item <- factor(df_long_M$item, levels = item_rank)
 levels(df_long_M$item) <- scent_rank
 
-saveRDS(df_long_M, "df_sex_O_M.rds")
+saveRDS(df_long_M, "Generated files/df_sex_O_M.rds")
 ```
 
 ```{r}
@@ -885,7 +885,7 @@ df_long_F$group <- factor(df_long_F$group, levels = group_name)
 df_long_F$item <- factor(df_long_F$item, levels = item_rank)
 levels(df_long_F$item) <- scent_rank
 
-saveRDS(df_long_F, "df_sex_O_F.rds")
+saveRDS(df_long_F, "Generated files/df_sex_O_F.rds")
 ```
 
 ```{r}
@@ -915,7 +915,7 @@ dfPlt <- bind_rows(df_F_diff, df_M_diff)
 dfPlt <- dfPlt %>% 
   mutate(diff = ifelse(sex == "Female", -diff, diff))
 
-saveRDS(dfPlt, "df_sex_O.rds")
+saveRDS(dfPlt, "Generated files/df_sex_O.rds")
 ```
 
 ## % correct by sex - PROBE
@@ -954,7 +954,7 @@ df_long_M$group <- factor(df_long_M$group, levels = group_name)
 df_long_M$item <- factor(df_long_M$item, levels = item_rank)
 levels(df_long_M$item) <- scent_rank
 
-saveRDS(df_long_M, "df_sex_P_M.rds")
+saveRDS(df_long_M, "Generated files/df_sex_P_M.rds")
 ```
 
 ```{r}
@@ -991,7 +991,7 @@ df_long_F$group <- factor(df_long_F$group, levels = group_name)
 df_long_F$item <- factor(df_long_F$item, levels = item_rank)
 levels(df_long_F$item) <- scent_rank
 
-saveRDS(df_long_F, "df_sex_P_F.rds")
+saveRDS(df_long_F, "Generated files/df_sex_P_F.rds")
 ```
 
 ```{r}
@@ -1021,7 +1021,7 @@ dfPlt <- bind_rows(df_F_diff, df_M_diff)
 dfPlt <- dfPlt %>% 
   mutate(diff = ifelse(sex == "Female", -diff, diff))
 
-saveRDS(dfPlt, "df_sex_P.rds")
+saveRDS(dfPlt, "Generated files/df_sex_P.rds")
 ```
 
 ## % correct by age - Ottawa Trial
@@ -1104,8 +1104,8 @@ levels(df_fine$item) <- rev(scent_rank)
 df_long_Age$item <- factor(df_long_Age$item, levels = rev(item_rank))
 levels(df_long_Age$item) <- rev(scent_rank)
 
-saveRDS(df_fine, "df_fine_O.rds")
-saveRDS(df_long_Age, "df_age_O.rds")
+saveRDS(df_fine, "Generated files/df_fine_O.rds")
+saveRDS(df_long_Age, "Generated files/df_age_O.rds")
 ```
 
 ## % correct by age - PROBE
@@ -1188,8 +1188,8 @@ levels(df_fine$item) <- rev(scent_rank)
 df_long_Age$item <- factor(df_long_Age$item, levels = rev(item_rank))
 levels(df_long_Age$item) <- rev(scent_rank)
 
-saveRDS(df_fine, "df_fine_P.rds")
-saveRDS(df_long_Age, "df_age_P.rds")
+saveRDS(df_fine, "Generated files/df_fine_P.rds")
+saveRDS(df_long_Age, "Generated files/df_age_P.rds")
 ```
 
 ```{r}

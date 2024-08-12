@@ -1,0 +1,581 @@
+---
+title: "Tables, distributions, ROCs"
+author: "Juan Li"
+date: 2024-05-28
+format: pptx
+editor: visual
+---
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+library(dplyr)      # Data manipulation
+library(ggplot2)    # Data visualization
+library(dabestr)    # Estimation plots
+library(pROC)       # ROC, AUC
+library(gtsummary)  # Summary table
+```
+
+## Read three datasets
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| output: false
+
+diagnosis_color <- read.csv("Supportive data/diagnosis colors.csv", header = TRUE)
+
+# DeNoPa - baseline
+df_D <- read.csv("DeNoPa_cut.csv", header = TRUE)
+df_D <- df_D %>% filter(EVENT_ID == "baseline") %>% droplevels()
+df_D$group <- factor(df_D$group, levels = c("HC", "PD/DLB", "MSA/PSP"))
+df_D$olfaction <- factor(df_D$olfaction, levels = c("Normal", "Reduced"))
+df_D$diagnosis <- factor(df_D$diagnosis, levels = intersect(diagnosis_color$diagnosis, unique(df_D$diagnosis)))
+df_D <- df_D %>% filter(nMissing < 16) %>% droplevels() 
+
+# Ottawa
+df_O <- read.csv("Ottawa_cut.csv", header = TRUE)
+df_O$group <- factor(df_O$group, levels = c("HC", "PD/DLB", "MSA/PSP"))
+df_O$diagnosis <- factor(df_O$diagnosis, levels = intersect(diagnosis_color$diagnosis, unique(df_O$diagnosis)))
+df_O$olfaction <- factor(df_O$olfaction, levels = c("Normal", "Reduced"))
+df_O <- df_O %>% mutate(disease.duration.month = disease.duration * 12)
+
+# PROBE
+df_P <- read.csv("PROBE_cut.csv", header = TRUE)
+df_P$group <- factor(df_P$group, levels = c("HC", "PD/DLB", "MSA/PSP"))
+df_P$olfaction <- factor(df_P$olfaction, levels = c("Normal", "Reduced"))
+df_P <- df_P %>% mutate(disease.duration.month = disease.duration * 12)
+df_P$diagnosis <- factor(df_P$diagnosis, levels = intersect(diagnosis_color$diagnosis, unique(df_P$diagnosis)))
+```
+
+```{r}
+df_D %>% 
+  group_by(group, diagnosis) %>% 
+  summarise(n=n())
+
+print(df_O %>% 
+        group_by(group, diagnosis) %>% 
+        summarise(n=n()), n=Inf)
+
+df_P %>% 
+  group_by(group, diagnosis) %>% 
+  summarise(n=n())
+```
+
+## Table 1
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+# DeNoPa
+df_D_tbl1 <- df_D %>% 
+  select(group, 
+         sex, age, disease.duration, last_month, SST.ID, SST.ID.percentile, olfaction) 
+names(df_D_tbl1)[c(2:ncol(df_D_tbl1))] <- c("Sex", "Age", "Parkinsonism duration at baseline in months", 
+                                            "Follow-up time in months",
+                                            "SST.ID", "SST.ID.percentile", "Olfaction")
+
+df_D_tbl1 %>% 
+  tbl_summary(by = group,
+              missing = "no",
+              type = list("Follow-up time in months" ~ "continuous")) %>% 
+  add_p() %>% 
+  add_q() %>% 
+  modify_header(label = "**Variable**") %>% # update the column header
+  modify_caption("Table 1. Patient Characteristics in DeNoPa") %>%
+  bold_labels() %>% 
+  as_flex_table()
+
+# Ottawa
+df_O_tbl1 <- df_O %>% 
+  select(group, 
+         sex, age, disease.duration.month, UPSIT, UPSIT_percentile, olfaction) 
+names(df_O_tbl1)[c(2:ncol(df_O_tbl1))] <- c("Sex", "Age", "Parkinsonism duration at baseline in months",
+                                            "UPSIT", "UPSIT_percentile", "Olfaction")
+
+df_O_tbl1 %>% 
+  tbl_summary(by = group,
+              missing = "no") %>% 
+  add_p() %>% 
+  add_q() %>% 
+  modify_header(label = "**Variable**") %>% # update the column header
+  modify_caption("Table 1. Patient Characteristics in Ottawa Trial") %>%
+  bold_labels() %>% 
+  as_flex_table()
+
+# PROBE
+df_P_tbl1 <- df_P %>% 
+  select(group, 
+         sex, age, disease.duration.month, UPSIT, UPSIT_percentile, olfaction) 
+names(df_P_tbl1)[c(2:ncol(df_P_tbl1))] <- c("Sex", "Age", "Parkinsonism duration at baseline in months",
+                                            "UPSIT", "UPSIT_percentile", "Olfaction")
+
+df_P_tbl1 %>% 
+  tbl_summary(by = group,
+              missing = "no") %>% 
+  add_p() %>% 
+  add_q() %>% 
+  modify_header(label = "**Variable**") %>% # update the column header
+  modify_caption("Table 1. Patient Characteristics in PROBE") %>%
+  bold_labels() %>% 
+  as_flex_table()
+```
+
+## Estimation plots for score distribution
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+# DeNoPa colors
+group.names.D <- levels(df_D$diagnosis)
+my.colors.D <- diagnosis_color$color[which(diagnosis_color$diagnosis %in% group.names.D)]
+custom.pal.D <- setNames(my.colors.D, group.names.D)
+group.colors.D <- my.colors.D[1:2]
+
+# Ottawa colors
+group.names.O <- levels(df_O$diagnosis)
+my.colors.O <- diagnosis_color$color[which(diagnosis_color$diagnosis %in% group.names.O)]
+custom.pal.O <- setNames(my.colors.O, group.names.O)
+group.colors.O <- my.colors.O[1:2]
+
+# PROBE colors
+group.names.P <- levels(df_P$diagnosis)
+my.colors.P <- diagnosis_color$color[which(diagnosis_color$diagnosis %in% group.names.P)]
+custom.pal.P <- setNames(my.colors.P, group.names.P)
+group.colors.P <- my.colors.P[1:2]
+```
+
+### Ottawa Trial: Figure 2 (a)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 11
+#| fig-height: 6
+
+alpha <- 1
+
+test_vec <- c("UPSIT")
+str_vec1 <- c("UPSIT score")
+str_vec2 <- c("difference in score")
+group_name <- levels(df_O$group)
+
+for (i in seq_len(length(test_vec))) {
+  df_i <- df_O %>% select(ID, group, diagnosis, all_of(test_vec[i]))
+  names(df_i)[ncol(df_i)] <- "value"
+  
+  # p-value
+  print(test_vec[i])
+  for(i_group in seq_len(length(group_name))) {
+    print(paste0("----- ", group_name[i_group], " -----"))
+    print(paste0(round(mean(df_i$value[df_i$group == group_name[i_group]], na.rm = T), 2), " (", round(sd(df_i$value[df_i$group == group_name[i_group]], na.rm = T), 2), ")"))
+  }
+  print("----- comparison -----")
+  print(DescTools::DunnettTest(x=df_i$value, g=df_i$group, control = group_name[1]))
+  
+  # Plot
+  multi.group <- 
+    df_i %>%
+    filter(!is.na(value)) %>% 
+    droplevels() %>% 
+    arrange(diagnosis) %>% 
+    dabest(group, value, 
+           idx = list(group_name),
+           paired = FALSE
+    )
+  
+  multi.group.mean_diff <- multi.group %>% mean_diff() 
+  
+  set.seed(100)
+  print(plot(multi.group.mean_diff, color.column = diagnosis, palette = custom.pal.O,
+             swarmplot.params=list(alpha=alpha),tick.fontsize = 14,
+             rawplot.ylabel = paste(str_vec1[i], "in Ottawa Trial", sep = "\n"),
+             effsize.ylabel = paste("Unpaired mean", str_vec2[i], sep = "\n")))
+}
+```
+
+### PROBE: Figure 2 (b)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 11
+#| fig-height: 6
+
+alpha <- 1
+
+# ============== PROBE ============== 
+test_vec <- c("UPSIT")
+str_vec1 <- c("UPSIT score")
+str_vec2 <- c("difference in score")
+group_name <- levels(df_P$group)
+
+for (i in seq_len(length(test_vec))) {
+  df_i <- df_P %>% select(ID, group, diagnosis, all_of(test_vec[i]))
+  names(df_i)[ncol(df_i)] <- "value"
+  
+  # p-value
+  print(test_vec[i])
+  for(i_group in seq_len(length(group_name))) {
+    print(paste0("----- ", group_name[i_group], " -----"))
+    print(paste0(round(mean(df_i$value[df_i$group == group_name[i_group]], na.rm = T), 2), " (", round(sd(df_i$value[df_i$group == group_name[i_group]], na.rm = T), 2), ")"))
+  }
+  print("----- comparison -----")
+  print(DescTools::DunnettTest(x=df_i$value, g=df_i$group, control = group_name[1]))
+  
+  # Plot
+  multi.group <- 
+    df_i %>%
+    filter(!is.na(value)) %>% 
+    droplevels() %>% 
+    arrange(diagnosis) %>% 
+    dabest(group, value, 
+           idx = list(group_name),
+           paired = FALSE
+    )
+  
+  multi.group.mean_diff <- multi.group %>% mean_diff() 
+  
+  set.seed(100)
+  print(plot(multi.group.mean_diff, color.column = diagnosis, palette = custom.pal.P,
+             swarmplot.params=list(alpha=alpha),tick.fontsize = 14,
+             rawplot.ylabel = paste(str_vec1[i], "in PROBE", sep = "\n"),
+             effsize.ylabel = paste("Unpaired mean", str_vec2[i], sep = "\n")))
+}
+```
+
+### DeNoPa: Figure 2 (c), Supplemental Figure 1 (a), (b)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 11
+#| fig-height: 6
+
+alpha <- 1
+
+test_vec <- c("SST.ID", "SST.TH", "SST.DS")
+str_vec1 <- c("SST-ID score", "SST-TH score", "SST-DS score")
+str_vec2 <- rep("difference in score", 3)
+group_name <- levels(df_D$group)
+
+for (i in seq_len(length(test_vec))) {
+  df_i <- df_D %>% select(ID, group, diagnosis, all_of(test_vec[i]))
+  names(df_i)[ncol(df_i)] <- "value"
+  
+  # p-value
+  print(test_vec[i])
+  for(i_group in seq_len(length(group_name))) {
+    print(paste0("----- ", group_name[i_group], " -----"))
+    print(paste0(round(mean(df_i$value[df_i$group == group_name[i_group]], na.rm = T), 2), " (", round(sd(df_i$value[df_i$group == group_name[i_group]], na.rm = T), 2), ")"))
+  }
+  print("----- comparison -----")
+  print(DescTools::DunnettTest(x=df_i$value, g=df_i$group, control = group_name[1]))
+  
+  # Plot
+  multi.group <- 
+    df_i %>%
+    filter(!is.na(value)) %>% 
+    droplevels() %>% 
+    arrange(diagnosis) %>% 
+    dabest(group, value, 
+           idx = list(group_name),
+           paired = FALSE
+    )
+  
+  multi.group.mean_diff <- multi.group %>% mean_diff() 
+  
+  set.seed(100)
+  print(plot(multi.group.mean_diff, color.column = diagnosis, palette = custom.pal.D,
+             swarmplot.params=list(alpha=alpha),tick.fontsize = 14,
+             rawplot.ylabel = paste(paste0("Baseline ", str_vec1[i]), "in DeNoPa", sep = "\n"),
+             effsize.ylabel = paste("Unpaired mean", str_vec2[i], sep = "\n")))
+}
+```
+
+### Combined: Figure 2 (d)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 11
+#| fig-height: 6
+
+alpha <- 1
+
+# ============== combine ============== 
+group_name <- levels(df_P$group)
+
+df_O_i <- df_O %>% select(group, diagnosis, UPSIT_percentile)
+names(df_O_i)[which(names(df_O_i) == "UPSIT_percentile")] <- "value"
+df_O_i$cohort <- "Ottawa Trial"
+
+df_P_i <- df_P %>% select(group, diagnosis, UPSIT_percentile)
+names(df_P_i)[which(names(df_P_i) == "UPSIT_percentile")] <- "value"
+df_P_i$cohort <- "PROBE"
+
+df_D_i <- df_D %>% select(group, diagnosis, SST.ID.percentile)
+names(df_D_i)[which(names(df_D_i) == "SST.ID.percentile")] <- "value"
+df_D_i$cohort <- "DeNoPa"
+
+df_combine <- bind_rows(df_O_i, df_P_i, df_D_i)
+df_combine$group <- factor(df_combine$group, levels = group_name)
+df_combine$diagnosis <- factor(df_combine$diagnosis, levels = c("HC", "PD", "DLB", "MSA", "PSP"))
+df_combine$cohort <- factor(df_combine$cohort, levels = c("Ottawa Trial", "PROBE", "DeNoPa"))
+
+# p-value
+for(i_group in seq_len(length(group_name))) {
+  print(paste0("----- ", group_name[i_group], " -----"))
+  print(paste0(round(mean(df_combine$value[df_combine$group == group_name[i_group]], na.rm = T), 2), " (", round(sd(df_combine$value[df_combine$group == group_name[i_group]], na.rm = T), 2), ")"))
+}
+print("----- comparison -----")
+print(pairwise.t.test(df_combine$value, df_combine$group, p.adjust.method="bonferroni"))
+print(DescTools::DunnettTest(x=df_combine$value, g=df_combine$group, control = group_name[1]))
+
+# Plot
+df_combine <- df_combine %>% 
+  filter(!is.na(value)) %>% 
+  droplevels() %>% 
+  arrange(diagnosis)
+
+multi.group <- 
+  df_combine %>%
+  dabest(group, value, 
+         idx = list(group_name),
+         paired = FALSE
+  )
+
+multi.group.mean_diff <- multi.group %>% mean_diff() 
+
+set.seed(100)
+print(plot(multi.group.mean_diff, color.column = diagnosis, palette = custom.pal.D,
+           swarmplot.params=list(alpha=alpha),tick.fontsize = 14,
+           rawplot.ylabel = paste("Smell test percentile", "in the combined cohort", sep = "\n"),
+           effsize.ylabel = paste("Unpaired mean", "difference in percentile", sep = "\n")))
+```
+
+## ROC, AUC: Table 2, Figure 2 (e), Supplemental Figure 1 (c)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+# ============== DeNoPa ============== 
+test_vec <- c("SST.ID", "SST.ID.percentile", "SST.TH", "SST.DS")
+test_vec2 <- c("Identification", "Identification percentile", "Threshold", "Discrimination")
+group_name <- levels(df_D$group)
+
+dfPlt_D <- data.frame()
+res_D <- data.frame()
+for (i in 1:4) {
+  df_i <- df_D %>% select(ID, group, diagnosis, all_of(test_vec[i]))
+  names(df_i)[ncol(df_i)] <- "value"
+  
+  print(test_vec[i])
+  for (i_group in c(1, 3:length(group_name))) {
+    roc_1 <- roc(df_i$group, df_i$value, levels=c(group_name[c(i_group, 2)]), na.rm=TRUE, ci=TRUE) 
+    print(paste0(group_name[2], " vs ", group_name[i_group], ": AUC = ", round(roc_1$auc,2), " (",round(roc_1$ci[1],2),"-",round(roc_1$ci[3],2),")"))
+    
+    temp <- (roc_1$sensitivities + roc_1$specificities)
+    ind <- which(temp == max(temp, na.rm = T))[1]
+    print(paste0(group_name[2], " vs ", group_name[i_group], ": cut = ", round(roc_1$thresholds[ind],2), 
+                 "; sensitivity = ", round(roc_1$sensitivities[ind],2),
+                 "; specificity = ", round(roc_1$specificities[ind],2)))
+    
+    dfPlt_D <- bind_rows(dfPlt_D,
+                         data.frame(sensitivities = roc_1$sensitivities,
+                                    specificities = roc_1$specificities,
+                                    tests = rep(test_vec2[i], length(roc_1$sensitivities)),
+                                    group = rep(paste0(group_name[2], " vs ", group_name[i_group]),
+                                                length(roc_1$sensitivities))))
+    
+    res_D <- bind_rows(res_D,
+                       data.frame(test = test_vec2[i],
+                                  group = paste0(group_name[2], " vs ", group_name[i_group]),
+                                  auc = paste0(round(roc_1$auc,2), " (",round(roc_1$ci[1],2),"-",round(roc_1$ci[3],2),")"),
+                                  threshold = paste0("<= ", round(roc_1$thresholds[ind],2)),
+                                  sensitivity = round(roc_1$sensitivities[ind],2),
+                                  specificity = round(roc_1$specificities[ind],2)
+                                  ))
+  }
+}
+dfPlt_D$cohort <- "DeNoPa"
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+# ============== Ottawa ============== 
+test_vec <- c("UPSIT", "UPSIT_percentile")
+test_vec2 <- c("UPSIT score", "UPSIT percentile")
+group_name <- levels(df_O$group)
+
+dfPlt_O <- data.frame()
+res_O <- data.frame()
+for (i in seq_len(length(test_vec))) {
+  df_i <- df_O %>% select(ID, group, diagnosis, all_of(test_vec[i]))
+  names(df_i)[ncol(df_i)] <- "value"
+  
+  print(test_vec[i])
+  for (i_group in c(1, 3:length(group_name))) {
+    roc_1 <- roc(df_i$group, df_i$value, levels=c(group_name[c(i_group, 2)]), na.rm=TRUE, ci=TRUE) 
+    print(paste0(group_name[2], " vs ", group_name[i_group], " : AUC = ", round(roc_1$auc,2), " (",round(roc_1$ci[1],2),"-",round(roc_1$ci[3],2),")"))
+    
+    temp <- (roc_1$sensitivities + roc_1$specificities)
+    ind <- which(temp == max(temp, na.rm = T))[1]
+    print(paste0(group_name[2], " vs ", group_name[i_group], ": cut = ", round(roc_1$thresholds[ind],2), 
+                 "; sensitivity = ", round(roc_1$sensitivities[ind],2),
+                 "; specificity = ", round(roc_1$specificities[ind],2)))
+    
+    dfPlt_O <- bind_rows(dfPlt_O,
+                         data.frame(sensitivities = roc_1$sensitivities,
+                                    specificities = roc_1$specificities,
+                                    tests = rep(test_vec2[i], length(roc_1$sensitivities)),
+                                    group = rep(paste0(group_name[2], " vs ", group_name[i_group]),
+                                                length(roc_1$sensitivities))))
+    
+    res_O <- bind_rows(res_O,
+                       data.frame(test = test_vec2[i],
+                                  group = paste0(group_name[2], " vs ", group_name[i_group]),
+                                  auc = paste0(round(roc_1$auc,2), " (",round(roc_1$ci[1],2),"-",round(roc_1$ci[3],2),")"),
+                                  threshold = paste0("<= ", round(roc_1$thresholds[ind],2)),
+                                  sensitivity = round(roc_1$sensitivities[ind],2),
+                                  specificity = round(roc_1$specificities[ind],2)
+                                  ))
+  }
+}
+dfPlt_O$cohort <- "Ottawa Trial"
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+# ============== PROBE ============== 
+test_vec <- c("UPSIT", "UPSIT_percentile")
+test_vec2 <- c("UPSIT score", "UPSIT percentile")
+group_name <- levels(df_P$group)
+
+dfPlt_P <- data.frame()
+res_P <- data.frame()
+for (i in seq_len(length(test_vec))) {
+  df_i <- df_P %>% select(ID, group, diagnosis, all_of(test_vec[i]))
+  names(df_i)[ncol(df_i)] <- "value"
+  
+  print(test_vec[i])
+  for (i_group in c(1, 3:length(group_name))) {
+    roc_1 <- roc(df_i$group, df_i$value, levels=c(group_name[c(i_group, 2)]), na.rm=TRUE, ci=TRUE) 
+    print(paste0("PD/DLB vs ", group_name[i_group], " : AUC = ", round(roc_1$auc,2), " (",round(roc_1$ci[1],2),"-",round(roc_1$ci[3],2),")"))
+    
+    temp <- (roc_1$sensitivities + roc_1$specificities)
+    ind <- which(temp == max(temp, na.rm = T))[1]
+    print(paste0(group_name[2], " vs ", group_name[i_group], ": cut = ", round(roc_1$thresholds[ind],2), 
+                 "; sensitivity = ", round(roc_1$sensitivities[ind],2),
+                 "; specificity = ", round(roc_1$specificities[ind],2)))
+    
+    dfPlt_P <- bind_rows(dfPlt_P,
+                         data.frame(sensitivities = roc_1$sensitivities,
+                                    specificities = roc_1$specificities,
+                                    tests = rep(test_vec2[i], length(roc_1$sensitivities)),
+                                    group = rep(paste0("PD/DLB vs ", group_name[i_group]), length(roc_1$sensitivities))))
+    
+    res_P <- bind_rows(res_P,
+                       data.frame(test = test_vec2[i],
+                                  group = paste0(group_name[2], " vs ", group_name[i_group]),
+                                  auc = paste0(round(roc_1$auc,2), " (",round(roc_1$ci[1],2),"-",round(roc_1$ci[3],2),")"),
+                                  threshold = paste0("<= ", round(roc_1$thresholds[ind],2)),
+                                  sensitivity = round(roc_1$sensitivities[ind],2),
+                                  specificity = round(roc_1$specificities[ind],2)
+                                  ))
+  }
+}
+dfPlt_P$cohort <- "PROBE"
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 10
+#| fig-height: 8
+
+dfPlt <- bind_rows(dfPlt_D, dfPlt_O, dfPlt_P)
+dfPlt$tests <- factor(dfPlt$tests, levels = c("UPSIT score", "UPSIT percentile",
+                                              "Identification", "Identification percentile", "Threshold", "Discrimination"))
+dfPlt$cohort <- factor(dfPlt$cohort, levels = c("Ottawa Trial", "PROBE", "DeNoPa"))
+dfPlt$group <- factor(dfPlt$group, levels = c("PD/DLB vs HC", "PD/DLB vs MSA/PSP", "PD/DLB vs MCI/DEM", "PD/DLB vs AON"))
+df_Diag <- data.frame(x = seq(0,1,0.1), y = seq(0,1,0.1))
+
+ggplot(dfPlt %>% filter(tests %in% c("UPSIT score", "Identification")) %>% droplevels(), aes(1-specificities, sensitivities, color = cohort)) +
+  geom_path(size = 1)+
+  scale_color_manual(values = c("darkgreen", "darkorange", "purple4")) + 
+  geom_line(data = df_Diag, aes(x, y), linetype = "dashed", color = "black", size = 0.5)+
+  coord_fixed()+
+  facet_wrap(~group) +
+  labs(x = "1 - specificity",
+       y = "sensitivity")+
+  theme_bw()+
+  theme(text = element_text(size = 14),
+        legend.position = "none")
+
+ggplot(dfPlt %>% filter(tests %in% c("Threshold", "Discrimination")) %>% droplevels(), aes(1-specificities, sensitivities, color = tests)) +
+  geom_path(size = 1)+
+  scale_color_manual(values = c("violet", "purple")) + 
+  geom_line(data = df_Diag, aes(x, y), linetype = "dashed", color = "black", size = 0.5)+
+  coord_fixed()+
+  facet_wrap(~group) +
+  labs(x = "1 - specificity",
+       y = "sensitivity")+
+  theme_bw()+
+  theme(text = element_text(size = 14),
+        legend.position = "none")
+```
+
+## Age and sex: Supplemental Table 2
+
+```{r}
+# DeNoPa
+fit <- glm(SST.ID ~ age + sex + group, data = df_D)
+fit %>% 
+  tbl_regression() %>% 
+  bold_labels() %>% 
+  bold_p()
+```
+
+```{r}
+# Ottawa Trial
+fit <- glm(UPSIT ~ age + sex + group, data = df_O)
+fit %>% 
+  tbl_regression()%>% 
+  bold_labels() %>% 
+  bold_p()
+```
+
+```{r}
+# PROBE
+fit <- glm(UPSIT ~ age + sex + group, data = df_P)
+fit %>% 
+  tbl_regression()%>% 
+  bold_labels() %>% 
+  bold_p()
+```
+
+```{r}
+
+```
