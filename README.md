@@ -97,3 +97,9 @@ Supportive functions are placed in the `R` folder. These functions need to be so
 2. `subsetAUC.R`: calculate each subset's AUC values.
 3. Modified `TestGardener` functions to generate ICCs: `make.dataList.R`, `Wbinsmth.R`, `eval_surp.R`, `ICC.plot.R`
 
+## Acknowledgement
+
+This work was supported by funding from Parkinson Canada, Michael J. Fox Foundation for Parkinson’s Research, Department of Medicine, The Ottawa Hospital Foundation, and the Uttra & Subhash Bhargava Family, the Paracelsus-Elena-Klinik Kassel, Parkinson Fonds Deutschland, and the Deutsche Parkinson Vereinigung. The study was also funded by the joint efforts of The Michael J. Fox Foundation for Parkinson’s Research (MJFF) and the Aligning Science Across Parkinson’s (ASAP) initiative. MJFF administers the grant [Grant ID: ASAP-020625] on behalf of ASAP and itself.
+
+The funders had no role in the design and execution of the study; the collection, management, analysis, and interpretation of the data; the preparation, review, or approval of the manuscript; and the decision to submit the manuscript for publication.
+
