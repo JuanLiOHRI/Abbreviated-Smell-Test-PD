@@ -26,6 +26,8 @@ Included in the `Supportive data` folder in this repo:
 
 ## Code files
 
+__Important:__ This project used TestGardener version 3.2.6. TestGardener has had a major update recently (version 3.3.3) which includes various changes that are incompatible with code here. We will update the code here to accomodate the changes, but until that completes, please use TestGardener version 3.2.6 to run this code.
+
 1. `1. Tables, distributions, ROCs.qmd`
    1. Code for
       - Table 1: demographic and diagnostic characteristics of the 3 cohorts
