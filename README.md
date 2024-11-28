@@ -61,7 +61,7 @@ Included in the `Supportive data` folder in this repo:
     3.  Generate files: the intermediate results will be saved to a folder called `Generated files`. **Note:** you need to create such folder within your working directory.
         -   `SST_ID_rankings.csv`: rankings of SST-ID scents
         -   `df_sex_D_M.rds`, `df_sex_D_F.rds`, `df_sex_D.rds`: relationship between scent identification and sex of SST-ID in DeNoPa
-        -   `df_fine_D.rds`, `df_age_D.rds`: relationship between scent identification and age of SST-ID in DeNoPa _Note:_ These cannot be reproduced if you are using data from zenodo
+        -   `df_fine_D.rds`, `df_age_D.rds`: relationship between scent identification and age of SST-ID in DeNoPa **Note:** These cannot be reproduced if you are using data from zenodo
 3.  `3. Abbreviated Smell Test UPSIT.qmd`
     1.  Code for
         -   Figure 3 (c,d): rankings of UPSIT scents, percentages of correct scent identification in each group
@@ -82,7 +82,7 @@ Included in the `Supportive data` folder in this repo:
         -   `df_sex_O_M.rds`, `df_sex_O_F.rds`, `df_sex_O.rds`: relationship between scent identification and sex of UPSIT in Ottawa trial
         -   `df_fine_O.rds`, `df_age_O.rds`: relationship between scent identification and age of UPSIT in Ottawa trial _Note:_ These cannot be reproduced if you are using data from zenodo
         -   `df_sex_P_M.rds`, `df_sex_P_F.rds`, `df_sex_P.rds`: relationship between scent identification and sex of UPSIT in PROBE
-        -   `df_fine_P.rds`, `df_age_P.rds`: relationship between scent identification and age of UPSIT in PROBE _Note:_ These cannot be reproduced if you are using data from zenodo
+        -   `df_fine_P.rds`, `df_age_P.rds`: relationship between scent identification and age of UPSIT in PROBE **Note:** These cannot be reproduced if you are using data from zenodo
 4.  `4. Combine UPSIT and SST-ID.qmd`
     1.  Code for
         -   Table 3: rankings of the 11 scents shared by SST-ID and UPSIT
