@@ -34,7 +34,7 @@ Included in the `Supportive data` folder in this repo:
 
 ## Code files
 
-**Important:** This project used **TestGardener version 3.2.6**. TestGardener has had a major update recently (version 3.3.3) which includes various changes that are incompatible with code here. We will update the repo to accommodate the changes, but until that completes, please use **TestGardener version 3.2.6** to run this code. You can find it [here](https://cran.r-project.org/src/contrib/Archive/TestGardener/)
+**Important:** This project used **TestGardener version 3.2.6**. TestGardener has had a major update recently (version 3.3.3) which includes various changes that are incompatible with code here. We will update the repo to accommodate the changes, but until that completes, please use **TestGardener version 3.2.6** to run this code. You can find it [here](https://cran.r-project.org/src/contrib/Archive/TestGardener/).
 
 1.  `1. Tables, distributions, ROCs.qmd`
     1.  Code for
