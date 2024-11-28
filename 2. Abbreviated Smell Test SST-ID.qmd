@@ -130,7 +130,7 @@ pFigure_3a <- ggplot(dfPlt, aes(item, auc, fill = rank_ave, color = rank_ave)) +
   theme_bw()+
   theme(legend.position = "none",
         axis.title.y = element_blank(),
-        text = element_text(size = 12),
+        text = element_text(size = 11),
         axis.text.y=
           element_text(face= scent_face))
 ```
@@ -182,7 +182,7 @@ levels(df_long$item) <- scent_rank
 #| fig-height: 3
 
 df_long$group <- factor(df_long$group, levels = group_name[1:2])
-p1 <- ggplot(df_long, aes(item, prop2, fill = group))+
+pFigure_3b <- ggplot(df_long, aes(item, prop2, fill = group))+
   geom_col(position = "identity", width = 0.5, alpha = 0.8) +
   scale_fill_manual(values = group.colors)+
   labs(y = "% of correct scent identification")+
@@ -195,7 +195,7 @@ p1 <- ggplot(df_long, aes(item, prop2, fill = group))+
         axis.title.y = element_blank(),
         text = element_text(size=11))
 
-print(ggarrange(pFigure_3a, p1, ncol = 2, widths = c(1, 0.8)))
+print(ggarrange(pFigure_3a, pFigure_3b, ncol = 2, widths = c(1, 0.8)))
 ```
 
 ### Supplemental Figure 2 (a)
@@ -227,6 +227,17 @@ p2 <- ggplot(df_D_diff, aes(item, diff, fill = as.numeric(item)))+
         legend.position = "none")+
   ylim(0, 52) 
 print(p2)
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 9
+#| fig-height: 3
+
+p2 <- p2 + theme(axis.text.y = element_blank())
+ggarrange(pFigure_3a, pFigure_3b, p2, ncol = 3, widths = c(1, 0.8, 0.8))
 ```
 
 ## Compare with other published item rankings
@@ -498,7 +509,7 @@ ggarrange(p1, p2, p3, ncol = 3)
 #| message: false
 #| output: false
 
-library(TestGardener)
+library(TestGardener) # Please make sure it's version 3.2.6
 source("R/make.dataList.R", echo=TRUE)
 source("R/Wbinsmth.R", echo=TRUE)
 source("R/eval_surp.R", echo=TRUE)
@@ -820,6 +831,8 @@ saveRDS(dfPlt, "Generated files/df_sex_D.rds")
 ```
 
 ## % correct by age
+
+*Note:* Below results cannot be reproduced if you are using the further de-identified data from zenodo, which contains `age_cat` instead of `age`
 
 ```{r}
 #| echo: false

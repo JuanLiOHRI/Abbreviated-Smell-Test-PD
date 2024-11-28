@@ -82,7 +82,7 @@ df_shared <- df_shared %>%
 n <-nrow(df_shared)
 print.data.frame(df_shared[,c("rank", "scent", "rank_SST_ID", "rank_UPSIT", "rank_ave")]) 
 
-write.csv(df_shared, "Generated files/scent_shared.csv", row.names = FALSE)
+write.csv(df_shared, "Generated files/df_shared.csv", row.names = FALSE)
 ```
 
 ```{r}
@@ -92,12 +92,18 @@ new_name <- paste("Short", 1:n, sep = "_")
 ind1 <- which(names(df_O) == "UPSIT.01.B")
 ind2 <- which(names(df_O) == "UPSIT.40.B")
 sub_UPSIT <- names(df_O)[ind1:ind2][df_shared$ind_UPSIT]
-df_O_sub <- df_O[, c("cohort", "ID", "group", "diagnosis", "sex", "age", "UPSIT", "olfaction", sub_UPSIT)]
+# zenodo data
+df_O_sub <- df_O[, c("cohort", "ID", "group", "diagnosis", "sex", "age_cat", "UPSIT", "olfaction", sub_UPSIT)]
+# original data
+#df_O_sub <- df_O[, c("cohort", "ID", "group", "diagnosis", "sex", "age", "UPSIT", "olfaction", sub_UPSIT)]
 names(df_O_sub)[which(names(df_O_sub) %in% sub_UPSIT)] <- new_name
 names(df_O_sub)[which(names(df_O_sub) == "UPSIT")] <- "score_old"
 df_O_sub$EVENT_ID <- "baseline"
 
-df_P_sub <- df_P[, c("cohort", "ID", "group", "diagnosis", "sex", "age", "UPSIT", "olfaction", sub_UPSIT)]
+# zenodo data
+df_P_sub <- df_P[, c("cohort", "ID", "group", "diagnosis", "sex", "age_cat", "UPSIT", "olfaction", sub_UPSIT)]
+# original data
+#df_P_sub <- df_P[, c("cohort", "ID", "group", "diagnosis", "sex", "age", "UPSIT", "olfaction", sub_UPSIT)]
 names(df_P_sub)[which(names(df_P_sub) %in% sub_UPSIT)] <- new_name
 names(df_P_sub)[which(names(df_P_sub) == "UPSIT")] <- "score_old"
 df_P_sub$EVENT_ID <- "baseline"
@@ -105,7 +111,10 @@ df_P_sub$EVENT_ID <- "baseline"
 ind1 <- which(names(df_D) == "SS.ID.01.B")
 ind2 <- which(names(df_D) == "SS.ID.16.B")
 sub_SST_ID <- names(df_D)[ind1:ind2][df_shared$ind_SST_ID]
-df_D_sub <- df_D[, c("cohort", "ID", "EVENT_ID", "group", "diagnosis", "sex", "age", "SST.ID", "olfaction", sub_SST_ID)]
+# zenodo data
+df_D_sub <- df_D[, c("cohort", "ID", "EVENT_ID", "group", "diagnosis", "sex", "age_cat", "SST.ID", "olfaction", sub_SST_ID)]
+# original data
+#df_D_sub <- df_D[, c("cohort", "ID", "EVENT_ID", "group", "diagnosis", "sex", "age", "SST.ID", "olfaction", sub_SST_ID)]
 names(df_D_sub)[which(names(df_D_sub) %in% sub_SST_ID)] <- new_name
 names(df_D_sub)[which(names(df_D_sub) == "SST.ID")] <- "score_old"
 ```
@@ -129,7 +138,7 @@ df_combine$diagnosis <- factor(df_combine$diagnosis, levels = intersect(diagnosi
 df_combine$olfaction <- factor(df_combine$olfaction, levels = c("Normal", "Reduced"))
 ```
 
-```{r}
+```{r, message=FALSE}
 test_vec <- c("score_old", paste("score", 1:n, sep = "_"))
 cohort_vec <- c("Combined", unique(df_combine$cohort))
 group_name <- levels(df_combine$group)
@@ -175,6 +184,7 @@ for (i in seq_len(length(test_vec))) {
                                 `C-stat` = temp[ind]))
   }
 }
+res
 ```
 
 ### Table 4
@@ -190,83 +200,168 @@ df_bl <- df_combine %>% filter(EVENT_ID == "baseline") %>% droplevels()
 roc_1 <- roc(df_bl$group, df_bl$score, levels=c(group_name[c(1, 2)]), na.rm=TRUE, ci=TRUE) 
 print("PD/DLB vs HC in the combined cohort")
 print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
-temp <- (roc_1$sensitivities + roc_1$specificities)
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
 ind <- which(temp == max(temp, na.rm = T))[1]
 print(paste0(group_name[2], " vs ", group_name[1], ": cut = ", round(roc_1$thresholds[ind],2), 
              "; sensitivity = ", round(roc_1$sensitivities[ind],2),
-             "; specificity = ", round(roc_1$specificities[ind],2)))
+             "; specificity = ", round(roc_1$specificities[ind],2),
+             "; C-stat = ", round(temp[ind], 2)))
 
 roc_1 <- roc(df_bl$group, df_bl$score, levels=c(group_name[c(3, 2)]), na.rm=TRUE, ci=TRUE) 
 print("PD/DLB vs MSA/PSP in the combined cohort")
 print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
-temp <- (roc_1$sensitivities + roc_1$specificities)
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
 ind <- which(temp == max(temp, na.rm = T))[1]
 print(paste0(group_name[2], " vs ", group_name[3], ": cut = ", round(roc_1$thresholds[ind],2), 
              "; sensitivity = ", round(roc_1$sensitivities[ind],2),
-             "; specificity = ", round(roc_1$specificities[ind],2)))
+             "; specificity = ", round(roc_1$specificities[ind],2),
+             "; C-stat = ", round(temp[ind], 2)))
 
 print("DeNoPa")
 df <- df_bl %>% filter(cohort == "DeNoPa") %>% droplevels()
 roc_1 <- roc(df$group, df$score, levels=c(group_name[c(1, 2)]), na.rm=TRUE, ci=TRUE) 
 print("PD/DLB vs HC in DeNoPa")
 print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
-temp <- (roc_1$sensitivities + roc_1$specificities)
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
 ind <- which(temp == max(temp, na.rm = T))[1]
 print(paste0(group_name[2], " vs ", group_name[1], ": cut = ", round(roc_1$thresholds[ind],2), 
              "; sensitivity = ", round(roc_1$sensitivities[ind],2),
-             "; specificity = ", round(roc_1$specificities[ind],2)))
+             "; specificity = ", round(roc_1$specificities[ind],2),
+             "; C-stat = ", round(temp[ind], 2)))
 
 roc_1 <- roc(df$group, df$score, levels=c(group_name[c(3, 2)]), na.rm=TRUE, ci=TRUE) 
 print("PD/DLB vs MSA/PSP in DeNoPa")
 print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
-temp <- (roc_1$sensitivities + roc_1$specificities)
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
 ind <- which(temp == max(temp, na.rm = T))[1]
 print(paste0(group_name[2], " vs ", group_name[3], ": cut = ", round(roc_1$thresholds[ind],2), 
              "; sensitivity = ", round(roc_1$sensitivities[ind],2),
-             "; specificity = ", round(roc_1$specificities[ind],2)))
+             "; specificity = ", round(roc_1$specificities[ind],2),
+             "; C-stat = ", round(temp[ind], 2)))
 
 print("Ottawa Trial")
 df <- df_bl %>% filter(cohort == "Ottawa Trial") %>% droplevels()
 roc_1 <- roc(df$group, df$score, levels=c(group_name[c(1, 2)]), na.rm=TRUE, ci=TRUE) 
 print("PD/DLB vs HC in Ottawa trial")
 print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
-temp <- (roc_1$sensitivities + roc_1$specificities)
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
 ind <- which(temp == max(temp, na.rm = T))[1]
 print(paste0(group_name[2], " vs ", group_name[1], ": cut = ", round(roc_1$thresholds[ind],2), 
              "; sensitivity = ", round(roc_1$sensitivities[ind],2),
-             "; specificity = ", round(roc_1$specificities[ind],2)))
-print(paste0(group_name[2], " vs ", group_name[1], ": cut = 4.5", 
-             "; sensitivity = ", round(roc_1$sensitivities[roc_1$thresholds == 4.5],2),
-             "; specificity = ", round(roc_1$specificities[roc_1$thresholds == 4.5],2)))
+             "; specificity = ", round(roc_1$specificities[ind],2),
+             "; C-stat = ", round(temp[ind], 2)))
 
 roc_1 <- roc(df$group, df$score, levels=c(group_name[c(3, 2)]), na.rm=TRUE, ci=TRUE) 
 print("PD/DLB vs MSA/PSP in Ottawa trial")
 print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
-temp <- (roc_1$sensitivities + roc_1$specificities)
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
 ind <- which(temp == max(temp, na.rm = T))[1]
 print(paste0(group_name[2], " vs ", group_name[3], ": cut = ", round(roc_1$thresholds[ind],2), 
              "; sensitivity = ", round(roc_1$sensitivities[ind],2),
-             "; specificity = ", round(roc_1$specificities[ind],2)))
+             "; specificity = ", round(roc_1$specificities[ind],2),
+             "; C-stat = ", round(temp[ind], 2)))
 
 print("PROBE")
 df <- df_bl %>% filter(cohort == "PROBE") %>% droplevels()
 roc_1 <- roc(df$group, df$score, levels=c(group_name[c(1, 2)]), na.rm=TRUE, ci=TRUE) 
 print("PD/DLB vs HC in PROBE")
 print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
-temp <- (roc_1$sensitivities + roc_1$specificities)
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
 ind <- which(temp == max(temp, na.rm = T))[1]
 print(paste0(group_name[2], " vs ", group_name[1], ": cut = ", round(roc_1$thresholds[ind],2), 
              "; sensitivity = ", round(roc_1$sensitivities[ind],2),
-             "; specificity = ", round(roc_1$specificities[ind],2)))
+             "; specificity = ", round(roc_1$specificities[ind],2),
+             "; C-stat = ", round(temp[ind], 2)))
 
 roc_1 <- roc(df$group, df$score, levels=c(group_name[c(3, 2)]), na.rm=TRUE, ci=TRUE) 
 print("PD/DLB vs MSA/PSP in PROBE")
 print(paste0(round(roc_1$auc, 2), " (", round(roc_1$ci[1], 2), "-", round(roc_1$ci[3], 2), ")"))
-temp <- (roc_1$sensitivities + roc_1$specificities)
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
 ind <- which(temp == max(temp, na.rm = T))[1]
 print(paste0(group_name[2], " vs ", group_name[3], ": cut = ", round(roc_1$thresholds[ind],2), 
              "; sensitivity = ", round(roc_1$sensitivities[ind],2),
-             "; specificity = ", round(roc_1$specificities[ind],2)))
+             "; specificity = ", round(roc_1$specificities[ind],2),
+             "; C-stat = ", round(temp[ind], 2)))
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+cut_1 <- 4.5
+cut_2 <- 5.5
+
+df_bl <- df_combine %>% filter(EVENT_ID == "baseline") %>% droplevels()
+roc_1 <- roc(df_bl$group, df_bl$score, levels=c(group_name[c(1, 2)]), na.rm=TRUE, ci=TRUE) 
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
+print("PD/DLB vs HC in the combined cohort")
+print(paste0(group_name[2], " vs ", group_name[1], ": cut = ", cut_1, 
+             "; sensitivity = ", round(roc_1$sensitivities[roc_1$thresholds == cut_1],2),
+             "; specificity = ", round(roc_1$specificities[roc_1$thresholds == cut_1],2),
+             "; C-stat = ", round(temp[roc_1$thresholds == cut_1], 2)))
+
+roc_1 <- roc(df_bl$group, df_bl$score, levels=c(group_name[c(3, 2)]), na.rm=TRUE, ci=TRUE) 
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
+print("PD/DLB vs MSA/PSP in the combined cohort")
+print(paste0(group_name[2], " vs ", group_name[3], ": cut = ", cut_2, 
+             "; sensitivity = ", round(roc_1$sensitivities[roc_1$thresholds == cut_2],2),
+             "; specificity = ", round(roc_1$specificities[roc_1$thresholds == cut_2],2),
+             "; C-stat = ", round(temp[roc_1$thresholds == cut_2], 2)))
+
+print("DeNoPa")
+df <- df_bl %>% filter(cohort == "DeNoPa") %>% droplevels()
+roc_1 <- roc(df$group, df$score, levels=c(group_name[c(1, 2)]), na.rm=TRUE, ci=TRUE) 
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
+print("PD/DLB vs HC in DeNoPa")
+print(paste0(group_name[2], " vs ", group_name[1], ": cut = ", cut_1, 
+             "; sensitivity = ", round(roc_1$sensitivities[roc_1$thresholds == cut_1],2),
+             "; specificity = ", round(roc_1$specificities[roc_1$thresholds == cut_1],2),
+             "; C-stat = ", round(temp[roc_1$thresholds == cut_1], 2)))
+
+roc_1 <- roc(df$group, df$score, levels=c(group_name[c(3, 2)]), na.rm=TRUE, ci=TRUE) 
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
+print("PD/DLB vs MSA/PSP in DeNoPa")
+print(paste0(group_name[2], " vs ", group_name[3], ": cut = ", cut_2, 
+             "; sensitivity = ", round(roc_1$sensitivities[roc_1$thresholds == cut_2],2),
+             "; specificity = ", round(roc_1$specificities[roc_1$thresholds == cut_2],2),
+             "; C-stat = ", round(temp[roc_1$thresholds == cut_2], 2)))
+
+print("Ottawa Trial")
+df <- df_bl %>% filter(cohort == "Ottawa Trial") %>% droplevels()
+roc_1 <- roc(df$group, df$score, levels=c(group_name[c(1, 2)]), na.rm=TRUE, ci=TRUE) 
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
+print("PD/DLB vs HC in Ottawa trial")
+print(paste0(group_name[2], " vs ", group_name[1], ": cut = ", cut_1, 
+             "; sensitivity = ", round(roc_1$sensitivities[roc_1$thresholds == cut_1],2),
+             "; specificity = ", round(roc_1$specificities[roc_1$thresholds == cut_1],2),
+             "; C-stat = ", round(temp[roc_1$thresholds == cut_1], 2)))
+
+roc_1 <- roc(df$group, df$score, levels=c(group_name[c(3, 2)]), na.rm=TRUE, ci=TRUE) 
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
+print("PD/DLB vs MSA/PSP in Ottawa trial")
+print(paste0(group_name[2], " vs ", group_name[3], ": cut = ", cut_2, 
+             "; sensitivity = ", round(roc_1$sensitivities[roc_1$thresholds == cut_2],2),
+             "; specificity = ", round(roc_1$specificities[roc_1$thresholds == cut_2],2),
+             "; C-stat = ", round(temp[roc_1$thresholds == cut_2], 2)))
+
+print("PROBE")
+df <- df_bl %>% filter(cohort == "PROBE") %>% droplevels()
+roc_1 <- roc(df$group, df$score, levels=c(group_name[c(1, 2)]), na.rm=TRUE, ci=TRUE) 
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
+print("PD/DLB vs HC in PROBE")
+print(paste0(group_name[2], " vs ", group_name[1], ": cut = ", cut_1, 
+             "; sensitivity = ", round(roc_1$sensitivities[roc_1$thresholds == cut_1],2),
+             "; specificity = ", round(roc_1$specificities[roc_1$thresholds == cut_1],2),
+             "; C-stat = ", round(temp[roc_1$thresholds == cut_1], 2)))
+
+roc_1 <- roc(df$group, df$score, levels=c(group_name[c(3, 2)]), na.rm=TRUE, ci=TRUE) 
+temp <- (roc_1$sensitivities + roc_1$specificities)/2
+print("PD/DLB vs MSA/PSP in PROBE")
+print(paste0(group_name[2], " vs ", group_name[3], ": cut = ", cut_2, 
+             "; sensitivity = ", round(roc_1$sensitivities[roc_1$thresholds == cut_2],2),
+             "; specificity = ", round(roc_1$specificities[roc_1$thresholds == cut_2],2),
+             "; C-stat = ", round(temp[roc_1$thresholds == cut_2], 2)))
 ```
 
 ```{r}
@@ -279,8 +374,8 @@ df_D_tbl1 <- df_bl %>%
   filter(cohort == "DeNoPa") %>% 
   droplevels() %>% 
   select(group, 
-         sex, age, score_old, score, olfaction) 
-names(df_D_tbl1)[c(2:ncol(df_D_tbl1))] <- c("Sex", "Age", 
+         sex, score_old, score, olfaction) 
+names(df_D_tbl1)[c(2:ncol(df_D_tbl1))] <- c("Sex",  
                                             "SST.ID", "7 scents", "Olfaction")
 
 df_D_tbl1 %>% 
@@ -300,8 +395,8 @@ df_O_tbl1 <- df_bl %>%
   filter(cohort == "Ottawa Trial") %>% 
   droplevels() %>% 
   select(group, 
-         sex, age, score_old, score, olfaction) 
-names(df_O_tbl1)[c(2:ncol(df_O_tbl1))] <- c("Sex", "Age", 
+         sex, score_old, score, olfaction) 
+names(df_O_tbl1)[c(2:ncol(df_O_tbl1))] <- c("Sex", 
                                             "UPSIT", "7 scents", "Olfaction")
 
 df_O_tbl1 %>% 
@@ -321,8 +416,8 @@ df_P_tbl1 <- df_bl %>%
   filter(cohort == "PROBE") %>% 
   droplevels() %>% 
   select(group, 
-         sex, age, score_old, score, olfaction) 
-names(df_P_tbl1)[c(2:ncol(df_P_tbl1))] <- c("Sex", "Age", 
+         sex, score_old, score, olfaction) 
+names(df_P_tbl1)[c(2:ncol(df_P_tbl1))] <- c("Sex", 
                                             "UPSIT", "7 scents", "Olfaction")
 
 df_P_tbl1 %>% 
@@ -340,8 +435,8 @@ df_P_tbl1 %>%
 # combined
 df_P_tbl1 <- df_bl %>% 
   select(group, 
-         sex, age, score_old, score, olfaction) 
-names(df_P_tbl1)[c(2:ncol(df_P_tbl1))] <- c("Sex", "Age", 
+         sex, score_old, score, olfaction) 
+names(df_P_tbl1)[c(2:ncol(df_P_tbl1))] <- c("Sex", 
                                             "UPSIT", "7 scents", "Olfaction")
 
 df_P_tbl1 %>% 
@@ -441,6 +536,8 @@ ggplot(df_long %>% filter(group %in% group_name[c(1,2)]), aes(item, prop2, fill 
 ```
 
 ## Age, Figure 7 (b)
+
+*Note:* Below results cannot be reproduced if you are using the further de-identified data from zenodo, which contains `age_cat` instead of `age`
 
 ```{r}
 #| echo: false

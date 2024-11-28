@@ -42,13 +42,17 @@ df_O <- read.csv("Ottawa_cut.csv", header = TRUE)
 df_O$group <- factor(df_O$group, levels = c("HC", "PD/DLB", "MSA/PSP"))
 df_O$diagnosis <- factor(df_O$diagnosis, levels = intersect(diagnosis_color$diagnosis, unique(df_O$diagnosis)))
 df_O$olfaction <- factor(df_O$olfaction, levels = c("Normal", "Reduced"))
-df_O <- df_O %>% mutate(disease.duration.month = disease.duration * 12)
+# disease.duration is removed from the zenodo file as a further de-identification measure, 
+# please uncomment below line if you get access to the original data file
+# df_O <- df_O %>% mutate(disease.duration.month = disease.duration * 12)
 
 # PROBE
 df_P <- read.csv("PROBE_cut.csv", header = TRUE)
 df_P$group <- factor(df_P$group, levels = c("HC", "PD/DLB", "MSA/PSP"))
 df_P$olfaction <- factor(df_P$olfaction, levels = c("Normal", "Reduced"))
-df_P <- df_P %>% mutate(disease.duration.month = disease.duration * 12)
+# disease.duration is removed from the zenodo file as a further de-identification measure, 
+# please uncomment below line if you get access to the original data file
+# df_P <- df_P %>% mutate(disease.duration.month = disease.duration * 12)
 df_P$diagnosis <- factor(df_P$diagnosis, levels = intersect(diagnosis_color$diagnosis, unique(df_P$diagnosis)))
 ```
 
@@ -73,11 +77,16 @@ df_P %>%
 #| warning: false
 #| message: false
 
+# ===============================================
+# If you download the further de-identification data from zenodo, 
+# please run below data chunk
+# ===============================================
+
 # DeNoPa
 df_D_tbl1 <- df_D %>% 
   select(group, 
-         sex, age, disease.duration, last_month, SST.ID, SST.ID.percentile, olfaction) 
-names(df_D_tbl1)[c(2:ncol(df_D_tbl1))] <- c("Sex", "Age", "Parkinsonism duration at baseline in months", 
+         sex, age_cat, last_month, SST.ID, SST.ID.percentile, olfaction) 
+names(df_D_tbl1)[c(2:ncol(df_D_tbl1))] <- c("Sex", "Age category", 
                                             "Follow-up time in months",
                                             "SST.ID", "SST.ID.percentile", "Olfaction")
 
@@ -95,8 +104,8 @@ df_D_tbl1 %>%
 # Ottawa
 df_O_tbl1 <- df_O %>% 
   select(group, 
-         sex, age, disease.duration.month, UPSIT, UPSIT_percentile, olfaction) 
-names(df_O_tbl1)[c(2:ncol(df_O_tbl1))] <- c("Sex", "Age", "Parkinsonism duration at baseline in months",
+         sex, age_cat, UPSIT, UPSIT_percentile, olfaction) 
+names(df_O_tbl1)[c(2:ncol(df_O_tbl1))] <- c("Sex", "Age category",
                                             "UPSIT", "UPSIT_percentile", "Olfaction")
 
 df_O_tbl1 %>% 
@@ -112,8 +121,8 @@ df_O_tbl1 %>%
 # PROBE
 df_P_tbl1 <- df_P %>% 
   select(group, 
-         sex, age, disease.duration.month, UPSIT, UPSIT_percentile, olfaction) 
-names(df_P_tbl1)[c(2:ncol(df_P_tbl1))] <- c("Sex", "Age", "Parkinsonism duration at baseline in months",
+         sex, age_cat, UPSIT, UPSIT_percentile, olfaction) 
+names(df_P_tbl1)[c(2:ncol(df_P_tbl1))] <- c("Sex", "Age category", 
                                             "UPSIT", "UPSIT_percentile", "Olfaction")
 
 df_P_tbl1 %>% 
@@ -125,6 +134,70 @@ df_P_tbl1 %>%
   modify_caption("Table 1. Patient Characteristics in PROBE") %>%
   bold_labels() %>% 
   as_flex_table()
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+# ===============================================
+# If you have access to the original data sets, 
+# please uncomment and run below data chunk
+# ===============================================
+
+# # DeNoPa
+# df_D_tbl1 <- df_D %>% 
+#   select(group, 
+#          sex, age, disease.duration, last_month, SST.ID, SST.ID.percentile, olfaction) 
+# names(df_D_tbl1)[c(2:ncol(df_D_tbl1))] <- c("Sex", "Age", "Parkinsonism duration at baseline in months", 
+#                                             "Follow-up time in months",
+#                                             "SST.ID", "SST.ID.percentile", "Olfaction")
+# 
+# df_D_tbl1 %>% 
+#   tbl_summary(by = group,
+#               missing = "no",
+#               type = list("Follow-up time in months" ~ "continuous")) %>% 
+#   add_p() %>% 
+#   add_q() %>% 
+#   modify_header(label = "**Variable**") %>% # update the column header
+#   modify_caption("Table 1. Patient Characteristics in DeNoPa") %>%
+#   bold_labels() %>% 
+#   as_flex_table()
+# 
+# # Ottawa
+# df_O_tbl1 <- df_O %>% 
+#   select(group, 
+#          sex, age, disease.duration.month, UPSIT, UPSIT_percentile, olfaction) 
+# names(df_O_tbl1)[c(2:ncol(df_O_tbl1))] <- c("Sex", "Age", "Parkinsonism duration at baseline in months",
+#                                             "UPSIT", "UPSIT_percentile", "Olfaction")
+# 
+# df_O_tbl1 %>% 
+#   tbl_summary(by = group,
+#               missing = "no") %>% 
+#   add_p() %>% 
+#   add_q() %>% 
+#   modify_header(label = "**Variable**") %>% # update the column header
+#   modify_caption("Table 1. Patient Characteristics in Ottawa Trial") %>%
+#   bold_labels() %>% 
+#   as_flex_table()
+# 
+# # PROBE
+# df_P_tbl1 <- df_P %>% 
+#   select(group, 
+#          sex, age, disease.duration.month, UPSIT, UPSIT_percentile, olfaction) 
+# names(df_P_tbl1)[c(2:ncol(df_P_tbl1))] <- c("Sex", "Age", "Parkinsonism duration at baseline in months",
+#                                             "UPSIT", "UPSIT_percentile", "Olfaction")
+# 
+# df_P_tbl1 %>% 
+#   tbl_summary(by = group,
+#               missing = "no") %>% 
+#   add_p() %>% 
+#   add_q() %>% 
+#   modify_header(label = "**Variable**") %>% # update the column header
+#   modify_caption("Table 1. Patient Characteristics in PROBE") %>%
+#   bold_labels() %>% 
+#   as_flex_table()
 ```
 
 ## Estimation plots for score distribution
@@ -551,7 +624,10 @@ ggplot(dfPlt %>% filter(tests %in% c("Threshold", "Discrimination")) %>% droplev
 
 ```{r}
 # DeNoPa
-fit <- glm(SST.ID ~ age + sex + group, data = df_D)
+# zenodo data
+fit <- glm(SST.ID ~ age_cat + sex + group, data = df_D)
+# original data
+#fit <- glm(SST.ID ~ age + sex + group, data = df_D)
 fit %>% 
   tbl_regression() %>% 
   bold_labels() %>% 
@@ -560,7 +636,10 @@ fit %>%
 
 ```{r}
 # Ottawa Trial
-fit <- glm(UPSIT ~ age + sex + group, data = df_O)
+# zenodo data
+fit <- glm(UPSIT ~ age_cat + sex + group, data = df_O)
+# original data
+#fit <- glm(UPSIT ~ age + sex + group, data = df_O)
 fit %>% 
   tbl_regression()%>% 
   bold_labels() %>% 
@@ -569,7 +648,10 @@ fit %>%
 
 ```{r}
 # PROBE
-fit <- glm(UPSIT ~ age + sex + group, data = df_P)
+# zenodo data
+fit <- glm(UPSIT ~ age_cat + sex + group, data = df_P)
+# original data
+#fit <- glm(UPSIT ~ age + sex + group, data = df_P)
 fit %>% 
   tbl_regression()%>% 
   bold_labels() %>% 
